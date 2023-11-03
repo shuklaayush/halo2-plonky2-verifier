@@ -1,20 +1,22 @@
 use goldilocks::fp2::{Extendable, QuadraticExtension}; // TODO: Move trait to root of goldilocks crate
-use goldilocks::Field64;
+use goldilocks::Field64; // TODO: Why even use a custom Goldilocks? Directly use plonky2 goldilocks
 use halo2_base::gates::{GateChip, RangeChip};
-use halo2_base::utils::BigPrimeField;
+use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 
 use super::fp::{Fp, FpChip};
 
 // TODO: Use const generics for arbitrary extension
-pub struct Fp2<F: BigPrimeField, F64: Field64 + Extendable<2>>([Fp<F, F64>; 2]);
+#[derive(Debug, Clone)]
+pub struct Fp2<F: ScalarField, F64: Field64 + Extendable<2>>([Fp<F, F64>; 2]);
 
 // TODO: Reference and lifetimes? Should Fp2Chip own FpChip?
-pub struct Fp2Chip<F: BigPrimeField, F64: Field64 + Extendable<2>> {
+#[derive(Debug, Clone)]
+pub struct Fp2Chip<F: ScalarField, F64: Field64 + Extendable<2>> {
     pub fp_chip: FpChip<F, F64>,
 }
 
-impl<F: BigPrimeField, F64: Field64 + Extendable<2>> Fp2Chip<F, F64> {
+impl<F: ScalarField, F64: Field64 + Extendable<2>> Fp2Chip<F, F64> {
     pub fn new(fp_chip: FpChip<F, F64>) -> Self {
         Self { fp_chip }
     }

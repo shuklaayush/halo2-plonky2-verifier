@@ -1,21 +1,22 @@
 use goldilocks::Field64;
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::gates::{GateInstructions, RangeInstructions};
-use halo2_base::utils::BigPrimeField;
+use halo2_base::utils::ScalarField;
 use halo2_base::virtual_region::lookups::LookupAnyManager;
 use halo2_base::{AssignedValue, Context};
 use std::marker::PhantomData;
 
 const MAX_PHASE: usize = 3;
 
-pub struct Fp<F: BigPrimeField, F64: Field64> {
+#[derive(Debug, Clone)]
+pub struct Fp<F: ScalarField, F64: Field64> {
     pub native: AssignedValue<F>,
     pub value: u64,
 
     _marker: PhantomData<F64>,
 }
 
-impl<F: BigPrimeField, F64: Field64> Fp<F, F64> {
+impl<F: ScalarField, F64: Field64> Fp<F, F64> {
     pub fn new(native: AssignedValue<F>, value: u64) -> Self {
         Self {
             native,
@@ -26,13 +27,14 @@ impl<F: BigPrimeField, F64: Field64> Fp<F, F64> {
 }
 
 // TODO: Reference and lifetimes? Should FpChip own RangeChip?
-pub struct FpChip<F: BigPrimeField, F64: Field64> {
+#[derive(Debug, Clone)]
+pub struct FpChip<F: ScalarField, F64: Field64> {
     pub range: RangeChip<F>, // TODO: Change to reference and add lifetime?
     _marker: PhantomData<F64>,
 }
 
 // TODO: Abstract away trait
-impl<F: BigPrimeField, F64: Field64> FpChip<F, F64> {
+impl<F: ScalarField, F64: Field64> FpChip<F, F64> {
     pub fn new(lookup_bits: usize, lookup_manager: [LookupAnyManager<F, 1>; MAX_PHASE]) -> Self {
         Self {
             range: RangeChip::<F>::new(lookup_bits, lookup_manager),
