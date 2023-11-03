@@ -1,5 +1,8 @@
 // #![cfg_attr(not(feature = "std"), no_std)]
 
+// mod hash;
+mod fields;
+
 use goldilocks::fp::Goldilocks as Fp;
 
 pub struct MerkleCap(pub Vec<[Fp; 4]>);
@@ -84,22 +87,6 @@ mod tests {
         //     &config.fri_params(degree_bits),
         // )?;
 
-        let merkle_caps = proof_with_pis.proof.opening_proof.commit_phase_merkle_caps;
-        let queries = proof_with_pis.proof.opening_proof.query_round_proofs;
-
-        println!("{:?}", merkle_caps.len());
-        println!("{:?}", queries.len());
-
-        let merkle_caps_fp = merkle_caps
-            .iter()
-            .map(|cap| {
-                cap.0
-                    .iter()
-                    .map(|x| x.elements.iter().map(|x| Fp::from(x.0)).collect_vec())
-                    .collect_vec()
-            })
-            .collect_vec();
-
         Ok(())
     }
 
@@ -118,6 +105,72 @@ mod tests {
 
         println!("{:?}", merkle_caps.len());
         println!("{:?}", queries.len());
+
+        let query = queries[0].clone().steps;
+        println!("{:?}", query.len());
+
+        // One cap for each FRI round
+        // Each cap is number of tree nodes at height
+        // Each node is 4 u64 limbs (256 bit)
+        let merkle_caps_fp = merkle_caps
+            .iter()
+            .map(|cap| {
+                cap.0
+                    .iter()
+                    .map(|node| {
+                        node.elements
+                            .iter()
+                            .map(|limb| Fp::from(limb.0))
+                            .collect_vec()
+                    })
+                    .collect_vec()
+            })
+            .collect_vec();
+
+        // Total queries used in FRI
+        // Each query is number of round steps
+        // Each step is arity number of evaluations (16 by default)
+        // Each evaluation is an extended field element - 2 u64 limbs (128 bit)
+        let queries_evals_fp = queries
+            .iter()
+            .map(|query| {
+                query
+                    .steps
+                    .iter()
+                    .map(|step| {
+                        step.evals
+                            .iter()
+                            .map(|limb_ext| [Fp::from(limb_ext.0[0].0), Fp::from(limb_ext.0[1].0)])
+                            .collect_vec()
+                    })
+                    .collect_vec()
+            })
+            .collect_vec();
+
+        let queries_proofs_fp = queries
+            .iter()
+            .map(|query| {
+                query
+                    .steps
+                    .iter()
+                    .map(|step| {
+                        step.merkle_proof
+                            .siblings
+                            .iter()
+                            .map(|node| {
+                                node.elements
+                                    .iter()
+                                    .map(|limb| Fp::from(limb.0))
+                                    .collect_vec()
+                            })
+                            .collect_vec()
+                    })
+                    .collect_vec()
+            })
+            .collect_vec();
+
+        println!("{:?}", queries_evals_fp[0][0][0].len());
+        println!("{:?}", queries_proofs_fp[0]);
 
         Ok(())
     }
