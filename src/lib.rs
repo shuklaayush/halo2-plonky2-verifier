@@ -1,8 +1,9 @@
 // #![cfg_attr(not(feature = "std"), no_std)]
 
-// mod hash;
 mod fields;
+mod hash;
 
+/*
 use goldilocks::fp::Goldilocks as Fp;
 
 pub struct MerkleCap(pub Vec<[Fp; 4]>);
@@ -175,3 +176,4 @@ mod tests {
         Ok(())
     }
 }
+*/
