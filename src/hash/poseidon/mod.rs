@@ -57,6 +57,24 @@ impl<F: Field64> Poseidon<F> {
     pub const FAST_PARTIAL_ROUND_INITIAL_MATRIX: [[u64; WIDTH - 1]; WIDTH - 1] =
         FAST_PARTIAL_ROUND_INITIAL_MATRIX;
 
+    fn hash(inputs: &[F]) -> [F; 4] {
+        // TODO: Remove hardcode
+        let mut state = [F::ZERO; WIDTH];
+
+        // Absorb all input chunks.
+        for input_chunk in inputs.chunks(SPONGE_RATE) {
+            // Overwrite the first r elements with the inputs. This differs from a standard sponge,
+            // where we would xor or add in the inputs. This is a well-known variant, though,
+            // sometimes called "overwrite mode".
+            state[..input_chunk.len()].copy_from_slice(input_chunk);
+            state = Self::permute(state);
+        }
+
+        // Squeeze until we have the desired number of outputs.
+        state = Self::permute(state);
+        state[..4].try_into().unwrap()
+    }
+
     #[inline(always)]
     #[unroll_for_loops]
     fn mds_row_shf(r: usize, v: &[u64; WIDTH]) -> u128 {
@@ -271,7 +289,7 @@ fn reduce_u160<F: Field64>((n_lo, n_hi): (u128, u32)) -> F {
 /// `generate_constants` about how these were generated. We include enough for a WIDTH of 12;
 /// smaller widths just use a subset.
 #[rustfmt::skip]
-pub const ALL_ROUND_CONSTANTS: [u6MDS_MATRIX_CIRC4; MAX_WIDTH * N_ROUNDS]  = [
+pub const ALL_ROUND_CONSTANTS: [u64; MAX_WIDTH * N_ROUNDS]  = [
     // WARNING: The AVX2 Goldilocks specialization relies on all round constants being in
     // 0..0xfffeeac900011537. If these constants are randomly regenerated, there is a ~.6% chance
     // that this condition will no longer hold.

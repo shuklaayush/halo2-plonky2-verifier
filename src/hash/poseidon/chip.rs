@@ -2,29 +2,25 @@ use goldilocks::fp2::Extendable; // TODO: Move trait to root of goldilocks crate
 use goldilocks::Field64;
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
-use std::marker::PhantomData;
 
 use crate::fields::fp::{Fp, FpChip};
 use crate::fields::fp2::{Fp2, Fp2Chip};
 
-use super::{Poseidon, ALL_ROUND_CONSTANTS, HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS};
+use super::{Poseidon, ALL_ROUND_CONSTANTS, HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS, WIDTH};
 
 #[derive(Debug, Clone)]
 pub struct PoseidonChip<F: ScalarField, F64: Field64 + Extendable<2>> {
     pub fp2_chip: Fp2Chip<F, F64>,
-    _marker: PhantomData<F>,
 }
 
-// TODO: Combine normal nd _extension functions by abstracting away trait.
+// TODO: Combine normal and _extension functions by abstracting away trait.
 //       Maybe make generic over chip type?
 //       Change back to Self::f(ctx, chip, state) instead of self.f(ctx, state)?
 impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
     // type Digest = Digest<F, 4>;
 
-    fn new(_ctx: &mut Context<F>, _flex_gate: &FlexGateConfig<F>) -> Self {
-        Self {
-            _marker: PhantomData::<F>,
-        }
+    fn new(fp2_chip: Fp2Chip<F, F64>) -> Self {
+        Self { fp2_chip }
     }
 
     pub fn fp_chip(&self) -> &FpChip<F, F64> {
@@ -35,31 +31,35 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         &self.fp2_chip
     }
 
-    // fn hash_elements(
-    //     &self,
-    //     ctx: &mut Context<F>,
-    //     main_chip: &FlexGateConfig<F>,
-    //     values: &[AssignedValue<F>],
-    // ) -> Result<Self::Digest, Error> {
-    //     let mut state: [AssignedValue<F>; WIDTH] = main_chip
-    //         .assign_region(ctx, (0..WIDTH).map(|_| Constant(F::ZERO)), vec![])
-    //         .try_into()
-    //         .unwrap();
+    fn hash_elements(&self, ctx: &mut Context<F>, values: &[Fp<F, F64>]) -> [Fp<F, F64>; 4] {
+        let chip = self.fp_chip();
+        let mut state: [Fp<F, F64>; WIDTH] = (0..WIDTH)
+            .map(|_| chip.load_constant(ctx, F64::ZERO))
+            .collect::<Vec<Fp<F, F64>>>()
+            .try_into() // TODO: Remove try_into(), do at compile time
+            .unwrap();
 
-    //     // Absorb all input chunks.
-    //     for input_chunk in values.chunks(8) {
-    //         // Overwrite the first r elements with the inputs. This differs from a standard sponge,
-    //         // where we would xor or add in the inputs. This is a well-known variant, though,
-    //         // sometimes called "overwrite mode".
-    //         state[..input_chunk.len()].clone_from_slice(input_chunk);
-    //         self.permute(ctx, main_chip, &mut state)?;
-    //     }
+        // Absorb all input chunks.
+        for input_chunk in values.chunks(8) {
+            // Overwrite the first r elements with the inputs. This differs from a standard sponge,
+            // where we would xor or add in the inputs. This is a well-known variant, though,
+            // sometimes called "overwrite mode".
+            state[..input_chunk.len()].clone_from_slice(input_chunk);
+            self.permute(ctx, &mut state);
+        }
 
-    //     // Squeeze until we have the desired number of outputs.
-    //     self.permute(ctx, main_chip, &mut state)?;
-    //     Ok(Digest::new(state[..4].to_vec()))
-    // }
+        // Squeeze until we have the desired number of outputs.
+        self.permute(ctx, &mut state);
+        // TODO: Fix this
+        [
+            state[0].clone(),
+            state[1].clone(),
+            state[2].clone(),
+            state[3].clone(),
+        ]
+    }
 
+    // TODO: These are what should be implemented based on Poseidon plonky2.
     // fn hash_no_pad(input: &[F]) -> Self::Hash {
     //     hash_n_to_hash_no_pad::<F, Self::Permutation>(input)
     // }
@@ -94,7 +94,10 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         *state = self.mds_partial_layer_init(ctx, state);
         for i in 0..N_PARTIAL_ROUNDS {
             state[0] = self.sbox_monomial(ctx, state[0].clone());
-            let c = chip.load_constant(ctx, F64::from(Poseidon::FAST_PARTIAL_ROUND_CONSTANTS[i]));
+            let c = chip.load_constant(
+                ctx,
+                F64::from(Poseidon::<F64>::FAST_PARTIAL_ROUND_CONSTANTS[i]),
+            );
             state[0] = chip.add(ctx, &state[0], &c);
             *state = self.mds_partial_layer_fast(ctx, state, i);
         }
@@ -104,17 +107,15 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
     pub fn permute<const WIDTH: usize>(
         &self,
         ctx: &mut Context<F>,
-        input: [Fp<F, F64>; WIDTH],
-    ) -> [Fp<F, F64>; WIDTH] {
+        input: &mut [Fp<F, F64>; WIDTH],
+    ) {
         let mut state = input;
         let mut round_ctr = 0;
 
         self.full_rounds(ctx, &mut state, &mut round_ctr);
         self.partial_rounds(ctx, &mut state, &mut round_ctr);
         self.full_rounds(ctx, &mut state, &mut round_ctr);
-        debug_assert_eq!(round_ctr, Poseidon::N_ROUNDS);
-
-        state
+        debug_assert_eq!(round_ctr, Poseidon::<F64>::N_ROUNDS);
     }
 
     fn constant_layer<const WIDTH: usize>(
@@ -141,8 +142,10 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         let chip = self.fp2_chip();
 
         for i in 0..12 {
-            let round_constant =
-                chip.load_constant(ctx, ALL_ROUND_CONSTANTS[i + WIDTH * round_ctr]);
+            let round_constant = chip.load_constant(
+                ctx,
+                F64::from(ALL_ROUND_CONSTANTS[i + WIDTH * round_ctr]).into(),
+            );
             state[i] = chip.add(ctx, &state[i], &round_constant);
         }
     }
@@ -182,7 +185,7 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         state: &mut [Fp2<F, F64>; WIDTH],
     ) {
         for i in 0..WIDTH {
-            state[i] = self.sbox_monomial(ctx, state[i].clone());
+            state[i] = self.sbox_monomial_extension(ctx, state[i].clone());
         }
     }
 
@@ -196,11 +199,11 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         let mut res = chip.load_constant(ctx, F64::ZERO);
 
         for i in 0..WIDTH {
-            let c = chip.load_constant(ctx, F64::from(Poseidon::MDS_MATRIX_CIRC[i]));
+            let c = chip.load_constant(ctx, F64::from(Poseidon::<F64>::MDS_MATRIX_CIRC[i]));
             res = chip.mul_add(ctx, &c, &v[(i + r) % WIDTH], &res);
         }
         {
-            let c = chip.load_constant(ctx, F64::from(Poseidon::MDS_MATRIX_DIAG[r]));
+            let c = chip.load_constant(ctx, F64::from(Poseidon::<F64>::MDS_MATRIX_DIAG[r]));
             res = chip.mul_add(ctx, &c, &v[r], &res);
         }
 
@@ -214,14 +217,14 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         v: &[Fp2<F, F64>; WIDTH],
     ) -> Fp2<F, F64> {
         let chip = self.fp2_chip();
-        let mut res = chip.load_constant(ctx, F64::ZERO); // TODO
+        let mut res = chip.load_constant(ctx, F64::ZERO.into()); // TODO
 
         for i in 0..WIDTH {
-            let c = chip.load_constant(ctx, Poseidon::MDS_MATRIX_CIRC[i]);
+            let c = chip.load_constant(ctx, F64::from(Poseidon::<F64>::MDS_MATRIX_CIRC[i]).into());
             res = chip.mul_add(ctx, &c, &v[(i + r) % WIDTH], &res);
         }
         {
-            let c = chip.load_constant(ctx, Poseidon::MDS_MATRIX_DIAG[r]);
+            let c = chip.load_constant(ctx, F64::from(Poseidon::<F64>::MDS_MATRIX_DIAG[r]).into());
             res = chip.mul_add(ctx, &c, &v[r], &res);
         }
 
@@ -266,7 +269,7 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         for i in 0..WIDTH {
             let c = chip.load_constant(
                 ctx,
-                F64::from(Poseidon::FAST_PARTIAL_FIRST_ROUND_CONSTANT[i]),
+                F64::from(Poseidon::<F64>::FAST_PARTIAL_FIRST_ROUND_CONSTANT[i]),
             );
             state[i] = chip.add(ctx, &state[i], &c);
         }
@@ -282,7 +285,7 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         for i in 0..WIDTH {
             let c = chip.load_constant(
                 ctx,
-                F64::from(Poseidon::FAST_PARTIAL_FIRST_ROUND_CONSTANT[i]),
+                F64::from(Poseidon::<F64>::FAST_PARTIAL_FIRST_ROUND_CONSTANT[i]).into(),
             );
             state[i] = chip.add(ctx, &state[i], &c);
         }
@@ -305,12 +308,12 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
             for c in 1..WIDTH {
                 let t = chip.load_constant(
                     ctx,
-                    F64::from(Poseidon::FAST_PARTIAL_ROUND_INITIAL_MATRIX[r - 1][c - 1]),
+                    F64::from(Poseidon::<F64>::FAST_PARTIAL_ROUND_INITIAL_MATRIX[r - 1][c - 1]),
                 );
                 result[c] = chip.mul_add(ctx, &t, &state[r], &result[c]);
             }
         }
-        result
+        result.try_into().unwrap()
     }
 
     fn mds_partial_layer_init_extension<const WIDTH: usize>(
@@ -321,7 +324,7 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         let chip = self.fp2_chip();
 
         let mut result = (0..WIDTH)
-            .map(|_| chip.load_constant(ctx, F64::ZERO))
+            .map(|_| chip.load_constant(ctx, F64::ZERO.into()))
             .collect::<Vec<_>>();
         result[0] = state[0].clone();
 
@@ -330,12 +333,13 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
             for c in 1..WIDTH {
                 let t = chip.load_constant(
                     ctx,
-                    F64::from(Poseidon::FAST_PARTIAL_ROUND_INITIAL_MATRIX[r - 1][c - 1]),
+                    F64::from(Poseidon::<F64>::FAST_PARTIAL_ROUND_INITIAL_MATRIX[r - 1][c - 1])
+                        .into(),
                 );
                 result[c] = chip.mul_add(ctx, &t, &state[r], &result[c]);
             }
         }
-        result
+        result.try_into().unwrap()
     }
 
     fn mds_partial_layer_fast<const WIDTH: usize>(
@@ -349,13 +353,13 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         let s0 = state[0].clone();
         let mds0to0 = chip.load_constant(
             ctx,
-            F64::from(Poseidon::MDS_MATRIX_CIRC[0] + Poseidon::MDS_MATRIX_DIAG[0]),
+            F64::from(Poseidon::<F64>::MDS_MATRIX_CIRC[0] + Poseidon::<F64>::MDS_MATRIX_DIAG[0]),
         );
         let mut d = chip.mul(ctx, &mds0to0, &s0);
         for i in 1..WIDTH {
             let t = chip.load_constant(
                 ctx,
-                F64::from(Poseidon::FAST_PARTIAL_ROUND_W_HATS[r][i - 1]),
+                F64::from(Poseidon::<F64>::FAST_PARTIAL_ROUND_W_HATS[r][i - 1]),
             );
             d = chip.mul_add(ctx, &t, &state[i], &d);
         }
@@ -363,7 +367,10 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         let mut result = vec![];
         result.push(d);
         for i in 1..WIDTH {
-            let t = chip.load_constant(ctx, F64::from(Poseidon::FAST_PARTIAL_ROUND_VS[r][i - 1]));
+            let t = chip.load_constant(
+                ctx,
+                F64::from(Poseidon::<F64>::FAST_PARTIAL_ROUND_VS[r][i - 1]),
+            );
             let res = chip.mul_add(ctx, &t, &state[0], &state[i]);
             result.push(res);
         }
@@ -381,13 +388,14 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         let s0 = state[0].clone();
         let mds0to0 = chip.load_constant(
             ctx,
-            F64::from(Poseidon::MDS_MATRIX_CIRC[0] + Poseidon::MDS_MATRIX_DIAG[0]),
+            F64::from(Poseidon::<F64>::MDS_MATRIX_CIRC[0] + Poseidon::<F64>::MDS_MATRIX_DIAG[0])
+                .into(),
         );
         let mut d = chip.mul(ctx, &mds0to0, &s0);
         for i in 1..WIDTH {
             let t = chip.load_constant(
                 ctx,
-                F64::from(Poseidon::FAST_PARTIAL_ROUND_W_HATS[r][i - 1]),
+                F64::from(Poseidon::<F64>::FAST_PARTIAL_ROUND_W_HATS[r][i - 1]).into(),
             );
             d = chip.mul_add(ctx, &t, &state[i], &d);
         }
@@ -395,10 +403,70 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> PoseidonChip<F, F64> {
         let mut result = vec![];
         result.push(d);
         for i in 1..WIDTH {
-            let t = chip.load_constant(ctx, F64::from(Poseidon::FAST_PARTIAL_ROUND_VS[r][i - 1]));
+            let t = chip.load_constant(
+                ctx,
+                F64::from(Poseidon::<F64>::FAST_PARTIAL_ROUND_VS[r][i - 1]).into(),
+            );
             let res = chip.mul_add(ctx, &t, &state[0], &state[i]);
             result.push(res);
         }
         result.try_into().unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ff::Field;
+    use goldilocks::fp::Goldilocks;
+    use halo2_base::gates::circuit::builder::RangeCircuitBuilder;
+    use halo2_proofs::dev::MockProver;
+    use halo2curves::bn256::Fr;
+    use rand::rngs::StdRng;
+    use rand_core::SeedableRng;
+
+    #[test]
+    fn test_poseidon_chip() {
+        let mut rng = StdRng::seed_from_u64(0);
+
+        let k = 16;
+        let lookup_bits = 8;
+        let unusable_rows = 9;
+
+        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        builder.set_lookup_bits(lookup_bits);
+
+        let fp_chip = FpChip::<Fr, Goldilocks>::new(lookup_bits, builder.lookup_manager().clone());
+        let fp2_chip = Fp2Chip::new(fp_chip);
+        let poseidon_chip = PoseidonChip::new(fp2_chip);
+
+        // TODO: What is builder.main(0)?
+        let ctx = builder.main(0);
+
+        for _ in 0..10 {
+            let fp_chip = poseidon_chip.fp_chip();
+
+            let preimage = Goldilocks::random(&mut rng);
+            let hash = Poseidon::<Goldilocks>::hash(&[preimage]);
+            let hash_wire1 = [
+                fp_chip.load_constant(ctx, hash[0]),
+                fp_chip.load_constant(ctx, hash[1]),
+                fp_chip.load_constant(ctx, hash[2]),
+                fp_chip.load_constant(ctx, hash[3]),
+            ];
+
+            let preimage_wire = fp_chip.load_witness(ctx, preimage);
+            let hash2_wire = poseidon_chip.hash_elements(ctx, &[preimage_wire]);
+
+            for i in 0..4 {
+                fp_chip.assert_equal(ctx, &hash_wire1[i], &hash2_wire[i]);
+            }
+        }
+
+        builder.calculate_params(Some(unusable_rows));
+
+        MockProver::run(k, &builder, vec![])
+            .unwrap()
+            .assert_satisfied();
     }
 }
