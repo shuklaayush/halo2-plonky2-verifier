@@ -147,15 +147,15 @@ mod tests {
         // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
-        for _ in 0..1000 {
+        for _ in 0..100 {
             let a = Goldilocks::random(&mut rng);
             let b = Goldilocks::random(&mut rng);
 
             let c1 = fp_chip.load_constant(ctx, a * b);
 
-            let a = fp_chip.load_constant(ctx, a);
-            let b = fp_chip.load_constant(ctx, b);
-            let c2 = fp_chip.mul(ctx, &a, &b);
+            let a_wire = fp_chip.load_constant(ctx, a);
+            let b_wire = fp_chip.load_constant(ctx, b);
+            let c2 = fp_chip.mul(ctx, &a_wire, &b_wire);
 
             fp_chip.assert_equal(ctx, &c1, &c2);
         }

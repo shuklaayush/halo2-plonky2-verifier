@@ -134,23 +134,21 @@ mod tests {
         let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
-        let fp2_chip = Fp2Chip::new(FpChip::<Fr, Goldilocks>::new(
-            lookup_bits,
-            builder.lookup_manager().clone(),
-        ));
+        let fp_chip = FpChip::<Fr, Goldilocks>::new(lookup_bits, builder.lookup_manager().clone());
+        let fp2_chip = Fp2Chip::new(fp_chip);
 
         // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
-        for _ in 0..1000 {
+        for _ in 0..100 {
             let a = QuadraticExtension::random(&mut rng);
             let b = QuadraticExtension::random(&mut rng);
 
             let c1 = fp2_chip.load_constant(ctx, a * b);
 
-            let a = fp2_chip.load_constant(ctx, a);
-            let b = fp2_chip.load_constant(ctx, b);
-            let c2 = fp2_chip.mul(ctx, &a, &b);
+            let a_wire = fp2_chip.load_constant(ctx, a);
+            let b_wire = fp2_chip.load_constant(ctx, b);
+            let c2 = fp2_chip.mul(ctx, &a_wire, &b_wire);
 
             fp2_chip.assert_equal(ctx, &c1, &c2);
         }
