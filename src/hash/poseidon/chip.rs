@@ -52,7 +52,6 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> PoseidonChip<F, F64> {
         }
 
         // Squeeze until we have the desired number of outputs.
-        self.permute(ctx, &mut state);
         // TODO: Fix this
         [
             state[0].clone(),
@@ -426,31 +425,11 @@ mod tests {
     use halo2_base::gates::circuit::builder::RangeCircuitBuilder;
     use halo2_proofs::dev::MockProver;
     use halo2curves::bn256::Fr;
-    use plonky2::field::types::Field;
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
-    use plonky2::hash::poseidon::SPONGE_RATE;
-    use plonky2::hash::poseidon::{Permuter, PoseidonHash};
+    use plonky2::hash::poseidon::PoseidonHash;
     use plonky2::plonk::config::Hasher;
     use rand::rngs::StdRng;
     use rand_core::SeedableRng;
-
-    fn hash(inputs: &[GoldilocksField]) -> [GoldilocksField; 4] {
-        // TODO: Remove hardcode
-        let mut state = [GoldilocksField::ZERO; SPONGE_WIDTH];
-
-        // Absorb all input chunks.
-        for input_chunk in inputs.chunks(SPONGE_RATE) {
-            // Overwrite the first r elements with the inputs. This differs from a standard sponge,
-            // where we would xor or add in the inputs. This is a well-known variant, though,
-            // sometimes called "overwrite mode".
-            state[..input_chunk.len()].copy_from_slice(input_chunk);
-            state = GoldilocksField::permute(state);
-        }
-
-        // Squeeze until we have the desired number of outputs.
-        state = GoldilocksField::permute(state);
-        state[..4].try_into().unwrap()
-    }
 
     #[test]
     fn test_poseidon_chip() {
@@ -471,27 +450,19 @@ mod tests {
         // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
-        for _ in 0..1 {
+        for _ in 0..10 {
             let fp_chip = poseidon_chip.fp_chip();
 
             let preimage = GoldilocksField::sample(&mut rng);
 
-            let hash = hash(&[preimage]);
-            let hash_wire1 = [
-                fp_chip.load_constant(ctx, hash[0]),
-                fp_chip.load_constant(ctx, hash[1]),
-                fp_chip.load_constant(ctx, hash[2]),
-                fp_chip.load_constant(ctx, hash[3]),
-            ];
-
             // TODO: Why doesn't this work?
-            // let hash = PoseidonHash::hash_no_pad(&[preimage]);
-            // let hash_wire1 = [
-            //     fp_chip.load_constant(ctx, hash.elements[0]),
-            //     fp_chip.load_constant(ctx, hash.elements[1]),
-            //     fp_chip.load_constant(ctx, hash.elements[2]),
-            //     fp_chip.load_constant(ctx, hash.elements[3]),
-            // ];
+            let hash = PoseidonHash::hash_no_pad(&[preimage]);
+            let hash_wire1 = [
+                fp_chip.load_constant(ctx, hash.elements[0]),
+                fp_chip.load_constant(ctx, hash.elements[1]),
+                fp_chip.load_constant(ctx, hash.elements[2]),
+                fp_chip.load_constant(ctx, hash.elements[3]),
+            ];
 
             let preimage_wire = fp_chip.load_witness(ctx, preimage);
             let hash2_wire = poseidon_chip.hash_elements(ctx, &[preimage_wire]);
