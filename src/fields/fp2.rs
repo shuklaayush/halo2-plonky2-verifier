@@ -1,22 +1,24 @@
-use goldilocks::fp2::{Extendable, QuadraticExtension}; // TODO: Move trait to root of goldilocks crate
-use goldilocks::Field64; // TODO: Why even use a custom Goldilocks? Directly use plonky2 goldilocks
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
+use plonky2::field::extension::Extendable;
+use plonky2::field::extension::FieldExtension;
+use plonky2::field::types::PrimeField64;
 
 use super::fp::{Fp, FpChip};
+use crate::fields::FieldChip;
 
 // TODO: Use const generics for arbitrary extension
 #[derive(Debug, Clone)]
-pub struct Fp2<F: ScalarField, F64: Field64 + Extendable<2>>([Fp<F, F64>; 2]);
+pub struct Fp2<F: ScalarField, F64: PrimeField64 + Extendable<2>>([Fp<F, F64>; 2]);
 
 // TODO: Reference and lifetimes? Should Fp2Chip own FpChip?
 #[derive(Debug, Clone)]
-pub struct Fp2Chip<F: ScalarField, F64: Field64 + Extendable<2>> {
+pub struct Fp2Chip<F: ScalarField, F64: PrimeField64 + Extendable<2>> {
     pub fp_chip: FpChip<F, F64>,
 }
 
-impl<F: ScalarField, F64: Field64 + Extendable<2>> Fp2Chip<F, F64> {
+impl<F: ScalarField, F64: PrimeField64 + Extendable<2>> Fp2Chip<F, F64> {
     pub fn new(fp_chip: FpChip<F, F64>) -> Self {
         Self { fp_chip }
     }
@@ -29,8 +31,8 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> Fp2Chip<F, F64> {
         self.fp_chip.range()
     }
 
-    pub fn load_constant(&self, ctx: &mut Context<F>, a: QuadraticExtension<F64>) -> Fp2<F, F64> {
-        let QuadraticExtension([a0, a1]) = a;
+    pub fn load_constant(&self, ctx: &mut Context<F>, a: F64::Extension) -> Fp2<F, F64> {
+        let [a0, a1] = a.to_basefield_array();
 
         Fp2([
             self.fp_chip.load_constant(ctx, a0),
@@ -38,8 +40,8 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> Fp2Chip<F, F64> {
         ])
     }
 
-    pub fn load_witness(&self, ctx: &mut Context<F>, a: QuadraticExtension<F64>) -> Fp2<F, F64> {
-        let QuadraticExtension([a0, a1]) = a;
+    pub fn load_witness(&self, ctx: &mut Context<F>, a: F64::Extension) -> Fp2<F, F64> {
+        let [a0, a1] = a.to_basefield_array();
 
         Fp2([
             self.fp_chip.load_witness(ctx, a0),
@@ -114,12 +116,12 @@ impl<F: ScalarField, F64: Field64 + Extendable<2>> Fp2Chip<F, F64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ff::Field;
-    use goldilocks::fp::Goldilocks;
-    use goldilocks::fp2::QuadraticExtension;
     use halo2_base::gates::circuit::builder::RangeCircuitBuilder;
     use halo2_proofs::dev::MockProver;
     use halo2curves::bn256::Fr;
+    use plonky2::field::extension::quadratic::QuadraticExtension;
+    use plonky2::field::goldilocks_field::GoldilocksField;
+    use plonky2::field::types::Sample;
     use rand::rngs::StdRng;
     use rand_core::SeedableRng;
 
@@ -134,15 +136,16 @@ mod tests {
         let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
-        let fp_chip = FpChip::<Fr, Goldilocks>::new(lookup_bits, builder.lookup_manager().clone());
+        let fp_chip =
+            FpChip::<Fr, GoldilocksField>::new(lookup_bits, builder.lookup_manager().clone());
         let fp2_chip = Fp2Chip::new(fp_chip);
 
         // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
         for _ in 0..100 {
-            let a = QuadraticExtension::random(&mut rng);
-            let b = QuadraticExtension::random(&mut rng);
+            let a = QuadraticExtension::sample(&mut rng);
+            let b = QuadraticExtension::sample(&mut rng);
 
             let c1 = fp2_chip.load_constant(ctx, a * b);
 

@@ -17,7 +17,7 @@ halo2-ecc = { path = "../halo2-lib/halo2-ecc" }
 itertools = { version = "0.11.0", default-features = false }
 plonky2 = { git = "https://github.com/0xpolygonzero/plonky2" }
 starky = { git = "https://github.com/0xpolygonzero/plonky2" }
-goldilocks = { path = "../goldilocks" }
+# goldilocks = { path = "../goldilocks" }
 unroll = { version = "0.1.5", default-features = false }
 
 [dev-dependencies]
