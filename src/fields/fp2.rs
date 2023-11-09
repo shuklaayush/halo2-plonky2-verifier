@@ -40,6 +40,18 @@ impl<F: ScalarField, F64: PrimeField64 + Extendable<2>> Fp2Chip<F, F64> {
         ])
     }
 
+    fn load_constants<const N: usize>(
+        &self,
+        ctx: &mut Context<F>,
+        a: &[F64::Extension; N],
+    ) -> [Fp2<F, F64>; N] {
+        a.iter()
+            .map(|a| self.load_constant(ctx, *a))
+            .collect::<Vec<Fp2<F, F64>>>() // TODO: There must be a better way
+            .try_into()
+            .unwrap()
+    }
+
     pub fn load_witness(&self, ctx: &mut Context<F>, a: F64::Extension) -> Fp2<F, F64> {
         let [a0, a1] = a.to_basefield_array();
 

@@ -59,6 +59,18 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
         Fp::new(ctx.load_constant(F::from(a)), a)
     }
 
+    fn load_constants<const N: usize>(
+        &self,
+        ctx: &mut Context<F>,
+        a: &[F64; N],
+    ) -> [Fp<F, F64>; N] {
+        a.iter()
+            .map(|a| self.load_constant(ctx, *a))
+            .collect::<Vec<Fp<F, F64>>>() // TODO: There must be a better way
+            .try_into()
+            .unwrap()
+    }
+
     fn load_witness(&self, ctx: &mut Context<F>, a: F64) -> Fp<F, F64> {
         let a = a.to_canonical_u64();
         Fp::new(ctx.load_witness(F::from(a)), a)

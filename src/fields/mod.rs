@@ -8,6 +8,8 @@ pub mod fp2;
 pub trait FieldChip<F: ScalarField, F64: Field64, Fp> {
     fn load_constant(&self, ctx: &mut Context<F>, a: F64) -> Fp;
 
+    fn load_constants<const N: usize>(&self, ctx: &mut Context<F>, a: &[F64; N]) -> [Fp; N];
+
     fn load_witness(&self, ctx: &mut Context<F>, a: F64) -> Fp;
 
     fn add(&self, ctx: &mut Context<F>, a: &Fp, b: &Fp) -> Fp;
