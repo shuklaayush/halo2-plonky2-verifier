@@ -1,3 +1,4 @@
+use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::extension::Extendable;
@@ -30,6 +31,13 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> PoseidonChip<F, F64> {
         Self { fp2_chip }
     }
 
+    pub fn gate(&self) -> &GateChip<F> {
+        self.fp2_chip.gate()
+    }
+
+    pub fn range(&self) -> &RangeChip<F> {
+        self.fp2_chip.range()
+    }
     pub fn fp_chip(&self) -> &FpChip<F, F64> {
         &self.fp2_chip.fp_chip
     }

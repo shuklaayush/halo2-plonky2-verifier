@@ -2,6 +2,7 @@
 
 mod fields;
 mod hash;
+mod merkle;
 
 /*
 use goldilocks::fp::Goldilocks as Fp;
