@@ -1,28 +1,32 @@
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::extension::Extendable;
-use plonky2::field::types::PrimeField64;
 
 use crate::fields::fp::{Fp, FpChip};
 use crate::fields::fp2::{Fp2, Fp2Chip};
 use crate::fields::FieldChip;
 
 use plonky2::hash::poseidon::{
-    Poseidon, ALL_ROUND_CONSTANTS, HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_ROUNDS, SPONGE_WIDTH,
+    Poseidon, ALL_ROUND_CONSTANTS, HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_ROUNDS, SPONGE_RATE,
+    SPONGE_WIDTH,
 };
 
 #[derive(Debug, Clone)]
-pub struct PoseidonChip<F: ScalarField, F64: PrimeField64 + Extendable<2>> {
+pub struct PoseidonChip<F: ScalarField, F64: Poseidon + Extendable<2>> {
     pub fp2_chip: Fp2Chip<F, F64>,
 }
 
 // TODO: Combine normal and _extension functions by abstracting away trait.
 //       Maybe make generic over chip type?
 //       Change back to Self::f(ctx, chip, state) instead of self.f(ctx, state)?
+//       No magic numbers
+//       Create separate hash element chip with a load_constant function (load_hash),
+//       assert_equal for hash
 impl<F: ScalarField, F64: Poseidon + Extendable<2>> PoseidonChip<F, F64> {
     // type Digest = Digest<F, 4>;
 
-    fn new(fp2_chip: Fp2Chip<F, F64>) -> Self {
+    // TODO: Do I need this function? Isn't it just the default constructor?
+    pub fn new(fp2_chip: Fp2Chip<F, F64>) -> Self {
         Self { fp2_chip }
     }
 
@@ -34,16 +38,16 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> PoseidonChip<F, F64> {
         &self.fp2_chip
     }
 
-    fn hash_elements(&self, ctx: &mut Context<F>, values: &[Fp<F, F64>]) -> [Fp<F, F64>; 4] {
+    pub fn hash_no_pad(&self, ctx: &mut Context<F>, values: &[Fp<F, F64>]) -> [Fp<F, F64>; 4] {
         let chip = self.fp_chip();
         let mut state: [Fp<F, F64>; SPONGE_WIDTH] = (0..SPONGE_WIDTH)
-            .map(|_| chip.load_constant(ctx, F64::ZERO))
+            .map(|_| chip.load_constant(ctx, F64::ZERO)) // TODO: Load only required number of constants?
             .collect::<Vec<Fp<F, F64>>>()
             .try_into() // TODO: Remove try_into(), do at compile time
             .unwrap();
 
         // Absorb all input chunks.
-        for input_chunk in values.chunks(8) {
+        for input_chunk in values.chunks(SPONGE_RATE) {
             // Overwrite the first r elements with the inputs. This differs from a standard sponge,
             // where we would xor or add in the inputs. This is a well-known variant, though,
             // sometimes called "overwrite mode".
@@ -61,14 +65,33 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> PoseidonChip<F, F64> {
         ]
     }
 
-    // TODO: These are what should be implemented based on Poseidon plonky2.
-    // fn hash_no_pad(input: &[F]) -> Self::Hash {
-    //     hash_n_to_hash_no_pad::<F, Self::Permutation>(input)
-    // }
+    // TODO: Dedup by reusing hash_no_pad
+    pub fn two_to_one(
+        &self,
+        ctx: &mut Context<F>,
+        left: &[Fp<F, F64>; 4],
+        right: &[Fp<F, F64>; 4],
+    ) -> [Fp<F, F64>; 4] {
+        let chip = self.fp_chip();
+        let mut state: [Fp<F, F64>; SPONGE_WIDTH] = (0..SPONGE_WIDTH)
+            .map(|_| chip.load_constant(ctx, F64::ZERO))
+            .collect::<Vec<Fp<F, F64>>>()
+            .try_into() // TODO: Remove try_into(), do at compile time
+            .unwrap();
 
-    // fn two_to_one(left: Self::Hash, right: Self::Hash) -> Self::Hash {
-    //     compress::<F, Self::Permutation>(left, right)
-    // }
+        state[0..4].clone_from_slice(left);
+        state[4..8].clone_from_slice(right);
+
+        self.permute(ctx, &mut state);
+
+        // TODO: Fix this
+        [
+            state[0].clone(),
+            state[1].clone(),
+            state[2].clone(),
+            state[3].clone(),
+        ]
+    }
 
     fn full_rounds<const SPONGE_WIDTH: usize>(
         &self,
@@ -432,7 +455,7 @@ mod tests {
     use rand_core::SeedableRng;
 
     #[test]
-    fn test_poseidon_chip() {
+    fn test_hash_no_pad() {
         let mut rng = StdRng::seed_from_u64(0);
 
         let k = 16;
@@ -455,20 +478,59 @@ mod tests {
 
             let preimage = GoldilocksField::sample(&mut rng);
 
-            // TODO: Why doesn't this work?
             let hash = PoseidonHash::hash_no_pad(&[preimage]);
-            let hash_wire1 = [
-                fp_chip.load_constant(ctx, hash.elements[0]),
-                fp_chip.load_constant(ctx, hash.elements[1]),
-                fp_chip.load_constant(ctx, hash.elements[2]),
-                fp_chip.load_constant(ctx, hash.elements[3]),
-            ];
+            let hash_wire1 = fp_chip.load_constants(ctx, &hash.elements);
 
             let preimage_wire = fp_chip.load_witness(ctx, preimage);
-            let hash2_wire = poseidon_chip.hash_elements(ctx, &[preimage_wire]);
+            let hash_wire2 = poseidon_chip.hash_no_pad(ctx, &[preimage_wire]);
 
             for i in 0..4 {
-                fp_chip.assert_equal(ctx, &hash_wire1[i], &hash2_wire[i]);
+                fp_chip.assert_equal(ctx, &hash_wire1[i], &hash_wire2[i]);
+            }
+        }
+
+        builder.calculate_params(Some(unusable_rows));
+
+        MockProver::run(k, &builder, vec![])
+            .unwrap()
+            .assert_satisfied();
+    }
+
+    #[test]
+    fn test_hash_two_to_one() {
+        let mut rng = StdRng::seed_from_u64(0);
+
+        let k = 16;
+        let lookup_bits = 8;
+        let unusable_rows = 9;
+
+        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        builder.set_lookup_bits(lookup_bits);
+
+        let fp_chip =
+            FpChip::<Fr, GoldilocksField>::new(lookup_bits, builder.lookup_manager().clone());
+        let fp2_chip = Fp2Chip::new(fp_chip);
+        let poseidon_chip = PoseidonChip::new(fp2_chip);
+
+        // TODO: What is builder.main(0)?
+        let ctx = builder.main(0);
+
+        for _ in 0..10 {
+            let fp_chip = poseidon_chip.fp_chip();
+
+            let hash1 = PoseidonHash::hash_no_pad(&[GoldilocksField::sample(&mut rng)]);
+            let hash2 = PoseidonHash::hash_no_pad(&[GoldilocksField::sample(&mut rng)]);
+
+            let hash_res1 = PoseidonHash::two_to_one(hash1, hash2);
+            let hash_res_wire1 = fp_chip.load_constants(ctx, &hash_res1.elements);
+
+            let hash1_wire = fp_chip.load_constants(ctx, &hash1.elements);
+            let hash2_wire = fp_chip.load_constants(ctx, &hash2.elements);
+
+            let hash_res_wire2 = poseidon_chip.two_to_one(ctx, &hash1_wire, &hash2_wire);
+
+            for i in 0..4 {
+                fp_chip.assert_equal(ctx, &hash_res_wire1[i], &hash_res_wire2[i]);
             }
         }
 
