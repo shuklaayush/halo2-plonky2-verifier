@@ -29,6 +29,7 @@ impl<F: ScalarField, F64: PrimeField64> Fp<F, F64> {
 }
 
 // TODO: Reference and lifetimes? Should FpChip own RangeChip?
+//       Add, mul as trait implementations for Fp instead of FpChip?
 #[derive(Debug, Clone)]
 pub struct FpChip<F: ScalarField, F64: PrimeField64> {
     pub range: RangeChip<F>, // TODO: Change to reference and add lifetime?
@@ -54,6 +55,7 @@ impl<F: ScalarField, F64: PrimeField64> FpChip<F, F64> {
 }
 
 impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip<F, F64> {
+    // TODO: This can be .from()?
     fn load_constant(&self, ctx: &mut Context<F>, a: F64) -> Fp<F, F64> {
         let a = a.to_canonical_u64();
         Fp::new(ctx.load_constant(F::from(a)), a)
@@ -76,6 +78,22 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
         Fp::new(ctx.load_witness(F::from(a)), a)
     }
 
+    // TODO: Should this be the other way around?
+    //       a * s + b * (1 - s)
+    fn select(
+        &self,
+        ctx: &mut Context<F>,
+        a: &Fp<F, F64>,
+        b: &Fp<F, F64>,
+        sel: &Fp<F, F64>, // TODO: Change to AssignedValue<F>?
+    ) -> Fp<F, F64> {
+        let one = self.load_constant(ctx, F64::ONE);
+        let one_minus_sel = self.sub(ctx, &one, sel);
+        let f1 = self.mul(ctx, &one_minus_sel, a);
+        let f2 = self.mul(ctx, sel, b);
+        self.add(ctx, &f1, &f2)
+    }
+
     fn add(&self, ctx: &mut Context<F>, a: &Fp<F, F64>, b: &Fp<F, F64>) -> Fp<F, F64> {
         let one = self.load_constant(ctx, F64::ONE);
         self.mul_add(ctx, a, &one, b)
@@ -83,7 +101,7 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
 
     fn sub(&self, ctx: &mut Context<F>, a: &Fp<F, F64>, b: &Fp<F, F64>) -> Fp<F, F64> {
         let minus_one = self.load_constant(ctx, F64::ZERO - F64::ONE);
-        self.mul_add(ctx, a, &minus_one, b)
+        self.mul_add(ctx, b, &minus_one, a)
     }
 
     // TODO: Add functions that don't reduce to chain operations and reduce at end
