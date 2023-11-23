@@ -105,13 +105,36 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
         Fp::new(
             gate.select_from_idx(
                 ctx,
-                arr.iter()
-                    .map(|x| x.native)
-                    .collect::<Vec<AssignedValue<F>>>(),
+                arr.iter().map(|x| x.native).collect::<Vec<_>>(),
                 idx.native,
             ),
             arr[idx.value as usize].value,
         )
+    }
+
+    fn select_arr_from_idx(
+        &self,
+        ctx: &mut Context<F>,
+        arr: &[&[Fp<F, F64>]],
+        idx: &Fp<F, F64>,
+    ) -> Vec<Fp<F, F64>> {
+        let gate = self.gate();
+
+        let indicator = gate.idx_to_indicator(ctx, idx.native, arr.len());
+        let native_arr = gate.select_array_by_indicator(
+            ctx,
+            arr.iter()
+                .map(|inner| inner.iter().map(|x| x.native).collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+                .as_slice(),
+            indicator.as_slice(),
+        );
+
+        native_arr
+            .iter()
+            .enumerate()
+            .map(|(i, &x)| Fp::new(x, arr[idx.value as usize][i].value))
+            .collect::<Vec<_>>()
     }
 
     // TODO: Optimize?
