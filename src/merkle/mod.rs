@@ -154,12 +154,12 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> MerkleTreeChip<F, F64> {
             let left = node
                 .iter()
                 .zip(sibling)
-                .map(|(ni, si)| fp_chip.select(ctx, ni, si, bit))
+                .map(|(ni, si)| fp_chip.select(ctx, ni, si, &one_minus_bit))
                 .collect::<Vec<_>>();
             let right = node
                 .iter()
                 .zip(sibling)
-                .map(|(ni, si)| fp_chip.select(ctx, ni, si, &one_minus_bit))
+                .map(|(ni, si)| fp_chip.select(ctx, ni, si, bit))
                 .collect::<Vec<_>>();
             node = poseidon_chip.two_to_one(
                 ctx,

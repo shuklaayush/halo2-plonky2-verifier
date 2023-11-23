@@ -14,18 +14,22 @@ const MAX_PHASE: usize = 3;
 #[derive(Debug, Clone)]
 pub struct Fp<F: ScalarField, F64: PrimeField64> {
     pub native: AssignedValue<F>,
-    pub value: u64, // TODO: Remove in favour of native.value()
 
     _marker: PhantomData<F64>,
 }
 
 impl<F: ScalarField, F64: PrimeField64> Fp<F, F64> {
-    pub fn new(native: AssignedValue<F>, value: u64) -> Self {
+    pub fn new(native: AssignedValue<F>) -> Self {
         Self {
             native,
-            value,
             _marker: PhantomData,
         }
+    }
+
+    pub fn value(&self) -> u64 {
+        let val = self.native.value();
+        debug_assert!(val < &F::from(F64::ORDER));
+        val.get_lower_64()
     }
 }
 
@@ -59,7 +63,7 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
     // TODO: This can be .from()?
     fn load_constant(&self, ctx: &mut Context<F>, a: F64) -> Fp<F, F64> {
         let a = a.to_canonical_u64();
-        Fp::new(ctx.load_constant(F::from(a)), a)
+        Fp::new(ctx.load_constant(F::from(a)))
     }
 
     fn load_constants<const N: usize>(
@@ -76,7 +80,7 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
 
     fn load_witness(&self, ctx: &mut Context<F>, a: F64) -> Fp<F, F64> {
         let a = a.to_canonical_u64();
-        Fp::new(ctx.load_witness(F::from(a)), a)
+        Fp::new(ctx.load_witness(F::from(a)))
     }
 
     fn select(
@@ -88,10 +92,7 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
     ) -> Fp<F, F64> {
         let gate = self.gate();
 
-        Fp::new(
-            gate.select(ctx, a.native, b.native, sel.native),
-            if sel.value == 1 { a.value } else { b.value },
-        )
+        Fp::new(gate.select(ctx, a.native, b.native, sel.native))
     }
 
     fn select_from_idx(
@@ -102,14 +103,11 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
     ) -> Fp<F, F64> {
         let gate = self.gate();
 
-        Fp::new(
-            gate.select_from_idx(
-                ctx,
-                arr.iter().map(|x| x.native).collect::<Vec<_>>(),
-                idx.native,
-            ),
-            arr[idx.value as usize].value,
-        )
+        Fp::new(gate.select_from_idx(
+            ctx,
+            arr.iter().map(|x| x.native).collect::<Vec<_>>(),
+            idx.native,
+        ))
     }
 
     fn select_arr_from_idx(
@@ -130,14 +128,9 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
             indicator.as_slice(),
         );
 
-        native_arr
-            .iter()
-            .enumerate()
-            .map(|(i, &x)| Fp::new(x, arr[idx.value as usize][i].value))
-            .collect::<Vec<_>>()
+        native_arr.iter().map(|&x| Fp::new(x)).collect::<Vec<_>>()
     }
 
-    // TODO: Optimize?
     fn add(&self, ctx: &mut Context<F>, a: &Fp<F, F64>, b: &Fp<F, F64>) -> Fp<F, F64> {
         let one = self.load_constant(ctx, F64::ONE);
         self.mul_add(ctx, a, &one, b)
@@ -162,8 +155,8 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
         c: &Fp<F, F64>,
     ) -> Fp<F, F64> {
         // 1. Calculate hint
-        let product: u128 = (a.value as u128) * (b.value as u128);
-        let sum = product + (c.value as u128);
+        let product: u128 = (a.value() as u128) * (b.value() as u128);
+        let sum = product + (c.value() as u128);
         let quotient = (sum / (F64::ORDER as u128)) as u64;
         let remainder = (sum % (F64::ORDER as u128)) as u64;
 
