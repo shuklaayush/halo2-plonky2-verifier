@@ -90,7 +90,7 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
 
         Fp::new(
             gate.select(ctx, a.native, b.native, sel.native),
-            if sel.value == 0 { a.value } else { b.value },
+            if sel.value == 1 { a.value } else { b.value },
         )
     }
 
