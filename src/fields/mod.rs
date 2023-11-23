@@ -22,6 +22,8 @@ pub trait FieldChip<F: ScalarField, F64: Field64, Fp> {
 
     fn select(&self, ctx: &mut Context<F>, a: &Fp, b: &Fp, sel: &Fp) -> Fp;
 
+    fn select_from_idx(&self, ctx: &mut Context<F>, arr: &[Fp], idx: &Fp) -> Fp;
+
     fn range_check(&self, ctx: &mut Context<F>, a: &Fp);
 
     fn assert_equal(&self, ctx: &mut Context<F>, a: &Fp, b: &Fp);

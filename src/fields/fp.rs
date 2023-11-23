@@ -10,10 +10,11 @@ use super::FieldChip;
 
 const MAX_PHASE: usize = 3;
 
+// TODO: Implement Into<QuantumCell<F>>?
 #[derive(Debug, Clone)]
 pub struct Fp<F: ScalarField, F64: PrimeField64> {
     pub native: AssignedValue<F>,
-    pub value: u64,
+    pub value: u64, // TODO: Remove in favour of native.value()
 
     _marker: PhantomData<F64>,
 }
@@ -78,22 +79,42 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
         Fp::new(ctx.load_witness(F::from(a)), a)
     }
 
-    // TODO: Should this be the other way around?
-    //       a * s + b * (1 - s)
     fn select(
         &self,
         ctx: &mut Context<F>,
         a: &Fp<F, F64>,
         b: &Fp<F, F64>,
-        sel: &Fp<F, F64>, // TODO: Change to AssignedValue<F>?
+        sel: &Fp<F, F64>,
     ) -> Fp<F, F64> {
-        let one = self.load_constant(ctx, F64::ONE);
-        let one_minus_sel = self.sub(ctx, &one, sel);
-        let f1 = self.mul(ctx, &one_minus_sel, a);
-        let f2 = self.mul(ctx, sel, b);
-        self.add(ctx, &f1, &f2)
+        let gate = self.gate();
+
+        Fp::new(
+            gate.select(ctx, a.native, b.native, sel.native),
+            if sel.value == 0 { a.value } else { b.value },
+        )
     }
 
+    fn select_from_idx(
+        &self,
+        ctx: &mut Context<F>,
+        arr: &[Fp<F, F64>],
+        idx: &Fp<F, F64>,
+    ) -> Fp<F, F64> {
+        let gate = self.gate();
+
+        Fp::new(
+            gate.select_from_idx(
+                ctx,
+                arr.iter()
+                    .map(|x| x.native)
+                    .collect::<Vec<AssignedValue<F>>>(),
+                idx.native,
+            ),
+            arr[idx.value as usize].value,
+        )
+    }
+
+    // TODO: Optimize?
     fn add(&self, ctx: &mut Context<F>, a: &Fp<F, F64>, b: &Fp<F, F64>) -> Fp<F, F64> {
         let one = self.load_constant(ctx, F64::ONE);
         self.mul_add(ctx, a, &one, b)
