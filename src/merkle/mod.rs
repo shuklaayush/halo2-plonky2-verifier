@@ -87,7 +87,7 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> MerkleTreeChip<F, F64> {
         leaf: &[Fp<F, F64>; 4],
         // TODO: Change index_bits to index field element and do bit decomposition inside
         leaf_index_bits: &[Fp<F, F64>], // To select whether current element is left or right child
-        cap_index: usize,               // TODO: Rename, calculate automatically
+        cap_index: Fp<F, F64>,          // TODO: Rename, calculate automatically
         proof: &[&[Fp<F, F64>; 4]],
     ) {
         let poseidon_chip = self.poseidon_chip();
@@ -99,15 +99,16 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> MerkleTreeChip<F, F64> {
             let one_minus_bit = fp_chip.sub(ctx, &one, bit);
 
             // TODO: Implement select for a hash type or array
+            //       Is there a more efficient to way to select both at once?
             let left = node
                 .iter()
                 .zip(sibling)
-                .map(|(ni, si)| fp_chip.select(ctx, ni, si, bit))
+                .map(|(ni, si)| fp_chip.select(ctx, ni, si, &one_minus_bit))
                 .collect::<Vec<_>>();
             let right = node
                 .iter()
                 .zip(sibling)
-                .map(|(ni, si)| fp_chip.select(ctx, ni, si, &one_minus_bit))
+                .map(|(ni, si)| fp_chip.select(ctx, ni, si, bit))
                 .collect::<Vec<_>>();
             node = poseidon_chip.two_to_one(
                 ctx,
@@ -117,8 +118,16 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> MerkleTreeChip<F, F64> {
         }
 
         let fp_chip = self.fp_chip();
+        let root = fp_chip.select_arr_from_idx(
+            ctx,
+            cap.iter()
+                .map(|node| node.as_slice())
+                .collect::<Vec<_>>()
+                .as_slice(),
+            &cap_index,
+        );
         for i in 0..4 {
-            fp_chip.assert_equal(ctx, &cap[cap_index][i], &node[i])
+            fp_chip.assert_equal(ctx, &root[i], &node[i])
         }
     }
 
@@ -277,8 +286,7 @@ mod tests {
             )
             .unwrap();
 
-            let cap_index = 0; // TODO: Change to wire, calculate automatically from leaf_idx and cap_height
-
+            let cap_index_wire = fp_chip.load_constant(ctx, GoldilocksField::ZERO); // TODO: Change to wire, calculate automatically from leaf_idx and cap_height
             let cap_wires = (0..merkle_tree.cap.0.len())
                 .map(|i| {
                     fp_chip.load_constants(
@@ -304,7 +312,7 @@ mod tests {
                 cap_wires.iter().map(|x| x).collect::<Vec<_>>().as_slice(),
                 &leaf_wire,
                 &leaf_idx_wire,
-                cap_index,
+                cap_index_wire,
                 proof_wires.iter().map(|x| x).collect::<Vec<_>>().as_slice(),
             );
         }
