@@ -312,6 +312,8 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> PoseidonChip<F, F64> {
         }
     }
 
+    // TODO: Something like this
+    //       fn f<F: FieldExtension<D, BaseField = Self>, const D: usize>(
     fn partial_first_constant_layer_extension<const SPONGE_WIDTH: usize>(
         &self,
         ctx: &mut Context<F>,
