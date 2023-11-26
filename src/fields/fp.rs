@@ -10,7 +10,6 @@ use super::FieldChip;
 
 const MAX_PHASE: usize = 3;
 
-// TODO: Implement Into<QuantumCell<F>>?
 #[derive(Debug, Clone)]
 pub struct Fp<F: ScalarField, F64: PrimeField64> {
     pub native: AssignedValue<F>,
@@ -32,6 +31,13 @@ impl<F: ScalarField, F64: PrimeField64> Fp<F, F64> {
         val.get_lower_64()
     }
 }
+
+// TODO: Use this to simplify code
+// impl<F: ScalarField, F64: PrimeField64> Into<QuantumCell<F>> for Fp<F, F64> {
+//     fn into(self) -> QuantumCell<F> {
+//         self.native.into()
+//     }
+// }
 
 // TODO: Reference and lifetimes? Should FpChip own RangeChip?
 //       Add, mul as trait implementations for Fp instead of FpChip?
@@ -60,7 +66,6 @@ impl<F: ScalarField, F64: PrimeField64> FpChip<F, F64> {
 }
 
 impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip<F, F64> {
-    // TODO: This can be .from()?
     fn load_constant(&self, ctx: &mut Context<F>, a: F64) -> Fp<F, F64> {
         let a = a.to_canonical_u64();
         Fp::new(ctx.load_constant(F::from(a)))
@@ -110,7 +115,7 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
         ))
     }
 
-    fn select_arr_from_idx(
+    fn select_array_from_idx(
         &self,
         ctx: &mut Context<F>,
         arr: &[&[Fp<F, F64>]],
@@ -129,6 +134,27 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
         );
 
         native_arr.iter().map(|&x| Fp::new(x)).collect::<Vec<_>>()
+    }
+
+    fn num_to_bits(
+        &self,
+        ctx: &mut Context<F>,
+        a: &Fp<F, F64>,
+        range_bits: usize,
+    ) -> Vec<Fp<F, F64>> {
+        let gate = self.gate();
+
+        let native_bits = gate.num_to_bits(ctx, a.native, range_bits);
+        native_bits.iter().map(|&x| Fp::new(x)).collect::<Vec<_>>()
+    }
+
+    fn bits_to_num(&self, ctx: &mut Context<F>, bits: &[Fp<F, F64>]) -> Fp<F, F64> {
+        let gate = self.gate();
+
+        Fp::new(gate.bits_to_num(
+            ctx,
+            bits.iter().map(|x| x.native).collect::<Vec<_>>().as_slice(),
+        ))
     }
 
     fn add(&self, ctx: &mut Context<F>, a: &Fp<F, F64>, b: &Fp<F, F64>) -> Fp<F, F64> {
@@ -194,22 +220,18 @@ impl<F: ScalarField, F64: PrimeField64> FieldChip<F, F64, Fp<F, F64>> for FpChip
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::gates::circuit::builder::RangeCircuitBuilder;
-    use halo2_proofs::dev::MockProver;
+    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
+    use halo2_base::halo2_proofs::dev::MockProver;
     use halo2curves::bn256::Fr;
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
-    use rand::rngs::StdRng;
-    use rand_core::SeedableRng;
 
     #[test]
-    fn test_fp_chip() {
-        let mut rng = StdRng::seed_from_u64(0);
-
+    fn test_mul() {
         let k = 16;
         let lookup_bits = 8;
         let unusable_rows = 9;
 
-        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
         let fp_chip =
@@ -219,8 +241,8 @@ mod tests {
         let ctx = builder.main(0);
 
         for _ in 0..100 {
-            let a = GoldilocksField::sample(&mut rng);
-            let b = GoldilocksField::sample(&mut rng);
+            let a = GoldilocksField::rand();
+            let b = GoldilocksField::rand();
 
             let c1 = fp_chip.load_constant(ctx, a * b);
 

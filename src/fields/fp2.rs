@@ -128,24 +128,20 @@ impl<F: ScalarField, F64: PrimeField64 + Extendable<2>> Fp2Chip<F, F64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::gates::circuit::builder::RangeCircuitBuilder;
-    use halo2_proofs::dev::MockProver;
+    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
+    use halo2_base::halo2_proofs::dev::MockProver;
     use halo2curves::bn256::Fr;
     use plonky2::field::extension::quadratic::QuadraticExtension;
     use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Sample;
-    use rand::rngs::StdRng;
-    use rand_core::SeedableRng;
 
     #[test]
     fn test_fp2_chip() {
-        let mut rng = StdRng::seed_from_u64(0);
-
         let k = 16;
         let lookup_bits = 8;
         let unusable_rows = 9;
 
-        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
         let fp_chip =
@@ -156,8 +152,8 @@ mod tests {
         let ctx = builder.main(0);
 
         for _ in 0..100 {
-            let a = QuadraticExtension::sample(&mut rng);
-            let b = QuadraticExtension::sample(&mut rng);
+            let a = QuadraticExtension::rand();
+            let b = QuadraticExtension::rand();
 
             let c1 = fp2_chip.load_constant(ctx, a * b);
 

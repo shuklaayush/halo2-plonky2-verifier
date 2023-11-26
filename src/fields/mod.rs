@@ -24,7 +24,13 @@ pub trait FieldChip<F: ScalarField, F64: Field64, Fp> {
 
     fn select_from_idx(&self, ctx: &mut Context<F>, arr: &[Fp], idx: &Fp) -> Fp;
 
-    fn select_arr_from_idx(&self, ctx: &mut Context<F>, arr: &[&[Fp]], idx: &Fp) -> Vec<Fp>;
+    fn select_array_from_idx(&self, ctx: &mut Context<F>, arr: &[&[Fp]], idx: &Fp) -> Vec<Fp>;
+
+    // TODO: Should this be a Vec<Fp> or Vec<F>?
+    fn num_to_bits(&self, ctx: &mut Context<F>, a: &Fp, range_bits: usize) -> Vec<Fp>;
+
+    // TODO: Should this be a &[F] or &[Fp]?
+    fn bits_to_num(&self, ctx: &mut Context<F>, bits: &[Fp]) -> Fp;
 
     fn range_check(&self, ctx: &mut Context<F>, a: &Fp);
 
