@@ -455,8 +455,8 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> PoseidonChip<F, F64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::gates::circuit::builder::RangeCircuitBuilder;
-    use halo2_proofs::dev::MockProver;
+    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
+    use halo2_base::halo2_proofs::dev::MockProver;
     use halo2curves::bn256::Fr;
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
     use plonky2::hash::poseidon::PoseidonHash;
@@ -472,7 +472,7 @@ mod tests {
         let lookup_bits = 8;
         let unusable_rows = 9;
 
-        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
         let fp_chip =
@@ -514,7 +514,7 @@ mod tests {
         let lookup_bits = 8;
         let unusable_rows = 9;
 
-        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
         let fp_chip =

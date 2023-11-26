@@ -1,5 +1,5 @@
 use halo2_base::gates::{GateChip, RangeChip};
-use halo2_base::utils::ScalarField;
+use halo2_base::utils::{log2_ceil, ScalarField};
 use halo2_base::Context;
 use plonky2::field::extension::Extendable;
 use plonky2::hash::poseidon::Poseidon;
@@ -83,19 +83,24 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> MerkleTreeChip<F, F64> {
     pub fn verify_proof_to_cap(
         &self,
         ctx: &mut Context<F>,
-        cap: &[&[Fp<F, F64>; 4]],
         leaf: &[Fp<F, F64>; 4],
-        // TODO: Change index_bits to index field element and do bit decomposition inside
-        leaf_index_bits: &[Fp<F, F64>], // To select whether current element is left or right child
-        cap_index: Fp<F, F64>,          // TODO: Rename, calculate automatically
+        leaf_index: &Fp<F, F64>,
+        cap: &[&[Fp<F, F64>; 4]],
         proof: &[&[Fp<F, F64>; 4]],
     ) {
         let poseidon_chip = self.poseidon_chip();
         let fp_chip = poseidon_chip.fp_chip();
 
+        // To select whether current element is left or right child
+        let log_n = proof.len() + log2_ceil(cap.len() as u64);
+        let leaf_index_bits = fp_chip.num_to_bits(ctx, leaf_index, log_n);
+
+        // leaf_index / 2^(depth - cap_height)
+        let cap_index = fp_chip.bits_to_num(ctx, &leaf_index_bits[proof.len()..]);
+
         let one = fp_chip.load_constant(ctx, F64::ONE); // TODO: Move somewhere else
         let mut node = leaf.clone(); // TODO: Remove clone
-        for (bit, &sibling) in leaf_index_bits.iter().zip(proof.iter()) {
+        for (&sibling, bit) in proof.iter().zip(leaf_index_bits.iter()) {
             let one_minus_bit = fp_chip.sub(ctx, &one, bit);
 
             // TODO: Implement select for a hash type or array
@@ -118,7 +123,7 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> MerkleTreeChip<F, F64> {
         }
 
         let fp_chip = self.fp_chip();
-        let root = fp_chip.select_arr_from_idx(
+        let root = fp_chip.select_array_from_idx(
             ctx,
             cap.iter()
                 .map(|node| node.as_slice())
@@ -135,19 +140,22 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> MerkleTreeChip<F, F64> {
     pub fn verify_proof(
         &self,
         ctx: &mut Context<F>,
-        root: &[Fp<F, F64>; 4],
         leaf: &[Fp<F, F64>; 4],
-        // TODO: Change index_bits to index field element and do bit decomposition inside
-        index_bits: &[Fp<F, F64>], // To select whether current element is left or right child
+        leaf_index: &Fp<F, F64>,
+        root: &[Fp<F, F64>; 4],
         proof: &[&[Fp<F, F64>; 4]],
     ) {
         // TODO: Debug assert lenghts are same
         let poseidon_chip = self.poseidon_chip();
         let fp_chip = poseidon_chip.fp_chip();
 
+        // To select whether current element is left or right child
+        let log_n = proof.len();
+        let leaf_index_bits = fp_chip.num_to_bits(ctx, leaf_index, log_n);
+
         let one = fp_chip.load_constant(ctx, F64::ONE); // TODO: Move somewhere else
         let mut node = leaf.clone(); // TODO: Remove clone
-        for (bit, &sibling) in index_bits.iter().zip(proof.iter()) {
+        for (bit, &sibling) in leaf_index_bits.iter().zip(proof.iter()) {
             let one_minus_bit = fp_chip.sub(ctx, &one, bit);
 
             // TODO: Implement select for a hash type or array
@@ -178,14 +186,17 @@ impl<F: ScalarField, F64: Poseidon + Extendable<2>> MerkleTreeChip<F, F64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::gates::circuit::builder::RangeCircuitBuilder;
-    use halo2_proofs::dev::MockProver;
+    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
+    use halo2_base::halo2_proofs::dev::MockProver;
     use halo2curves::bn256::Fr;
     use plonky2::field::types::Field;
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
     use plonky2::hash::merkle_proofs::{verify_merkle_proof, verify_merkle_proof_to_cap};
     use plonky2::hash::merkle_tree::MerkleTree;
     use plonky2::hash::poseidon::PoseidonHash;
+    use rand::rngs::StdRng;
+    use rand::Rng;
+    use rand_core::SeedableRng;
 
     use crate::fields::fp::FpChip;
     use crate::fields::fp2::Fp2Chip;
@@ -197,7 +208,7 @@ mod tests {
         let lookup_bits = 8;
         let unusable_rows = 9;
 
-        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
         let fp_chip =
@@ -243,11 +254,13 @@ mod tests {
 
     #[test]
     fn test_verify_proof_to_cap() {
+        let mut rng = StdRng::seed_from_u64(0u64);
+
         let k = 16;
         let lookup_bits = 8;
         let unusable_rows = 9;
 
-        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
         let fp_chip =
@@ -270,12 +283,9 @@ mod tests {
             let merkle_tree =
                 MerkleTree::<GoldilocksField, PoseidonHash>::new(leaves.clone(), cap_height);
 
-            let leaf_idx = 3;
-            let leaf_idx_wire = fp_chip.load_constants(
-                ctx,
-                // TODO: Get from leaf_idx
-                &[GoldilocksField::ONE, GoldilocksField::ONE],
-            );
+            let leaf_idx = rng.gen_range(0..leaves.len());
+            let leaf_idx_wire =
+                fp_chip.load_constant(ctx, GoldilocksField::from_canonical_usize(leaf_idx));
             let merkle_proof = merkle_tree.prove(leaf_idx);
 
             verify_merkle_proof_to_cap(
@@ -286,7 +296,6 @@ mod tests {
             )
             .unwrap();
 
-            let cap_index_wire = fp_chip.load_constant(ctx, GoldilocksField::ZERO); // TODO: Change to wire, calculate automatically from leaf_idx and cap_height
             let cap_wires = (0..merkle_tree.cap.0.len())
                 .map(|i| {
                     fp_chip.load_constants(
@@ -309,10 +318,9 @@ mod tests {
 
             merkle_chip.verify_proof_to_cap(
                 ctx,
-                cap_wires.iter().map(|x| x).collect::<Vec<_>>().as_slice(),
                 &leaf_wire,
                 &leaf_idx_wire,
-                cap_index_wire,
+                cap_wires.iter().map(|x| x).collect::<Vec<_>>().as_slice(),
                 proof_wires.iter().map(|x| x).collect::<Vec<_>>().as_slice(),
             );
         }
@@ -326,11 +334,13 @@ mod tests {
 
     #[test]
     fn test_verify_proof() {
+        let mut rng = StdRng::seed_from_u64(0u64);
+
         let k = 16;
         let lookup_bits = 8;
         let unusable_rows = 9;
 
-        let mut builder = RangeCircuitBuilder::default().use_k(k as usize);
+        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
         let fp_chip =
@@ -351,16 +361,9 @@ mod tests {
 
             let merkle_tree = MerkleTree::<GoldilocksField, PoseidonHash>::new(leaves.clone(), 0);
 
-            let leaf_idx = 3;
-            let leaf_idx_wire = fp_chip.load_constants(
-                ctx,
-                // TODO: Get from leaf_idx
-                &[
-                    GoldilocksField::ONE,
-                    GoldilocksField::ONE,
-                    GoldilocksField::ZERO,
-                ],
-            );
+            let leaf_idx = rng.gen_range(0..leaves.len());
+            let leaf_idx_wire =
+                fp_chip.load_constant(ctx, GoldilocksField::from_canonical_usize(leaf_idx));
             let merkle_proof = merkle_tree.prove(leaf_idx);
 
             verify_merkle_proof(
@@ -386,9 +389,9 @@ mod tests {
 
             merkle_chip.verify_proof(
                 ctx,
-                &root_wire,
                 &leaf_wire,
                 &leaf_idx_wire,
+                &root_wire,
                 proof_wires.iter().map(|x| x).collect::<Vec<_>>().as_slice(),
             );
         }
