@@ -8,16 +8,14 @@ edition = "2021"
 [dependencies]
 ff = { version = "0.13.0" }
 
-halo2_proofs = { git = "https://github.com/axiom-crypto/halo2" }
 halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves" }
 
-halo2-base = { path = "../halo2-lib/halo2-base" }
-halo2-ecc = { path = "../halo2-lib/halo2-ecc" }
+halo2-base = { git = "https://github.com/axiom-crypto/halo2-lib", branch = "community-edition"}
+halo2-ecc = { git = "https://github.com/axiom-crypto/halo2-lib", branch = "community-edition" }
 
 itertools = { version = "0.11.0", default-features = false }
 plonky2 = { git = "https://github.com/0xpolygonzero/plonky2" }
 starky = { git = "https://github.com/0xpolygonzero/plonky2" }
-# goldilocks = { path = "../goldilocks" }
 unroll = { version = "0.1.5", default-features = false }
 
 [dev-dependencies]
@@ -31,3 +29,7 @@ tiny-keccak = "2.0.2"
 [patch."https://github.com/0xpolygonzero/plonky2"]
 plonky2 = { path = "../plonky2/plonky2" }
 starky = { path = "../plonky2/starky" }
+
+[patch."https://github.com/axiom-crypto/halo2-lib"]
+halo2-base = { path = "../halo2-lib/halo2-base" }
+halo2-ecc = { path = "../halo2-lib/halo2-ecc" }
