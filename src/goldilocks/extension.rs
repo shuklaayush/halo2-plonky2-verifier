@@ -12,6 +12,14 @@ use super::field::{GoldilocksChip, GoldilocksWire};
 #[derive(Copy, Clone, Debug)]
 pub struct GoldilocksQuadExtWire<F: ScalarField>([GoldilocksWire<F>; 2]);
 
+impl<F: ScalarField> GoldilocksQuadExtWire<F> {
+    pub fn value(&self) -> QuadraticExtension<GoldilocksField> {
+        let val1 = self.0[0].value();
+        let val2 = self.0[1].value();
+        QuadraticExtension::from_basefield_array([val1, val2])
+    }
+}
+
 // TODO: Reference and lifetimes? Should GoldilocksExtensionChip own GoldilocksChip?
 #[derive(Debug, Clone)]
 pub struct GoldilocksQuadExtChip<F: ScalarField> {
@@ -184,13 +192,11 @@ mod tests {
             let a = QuadraticExtension::rand();
             let b = QuadraticExtension::rand();
 
-            let c1 = gle_chip.load_constant(ctx, a * b);
-
             let a_wire = gle_chip.load_constant(ctx, a);
             let b_wire = gle_chip.load_constant(ctx, b);
-            let c2 = gle_chip.mul(ctx, &a_wire, &b_wire);
+            let c_wire = gle_chip.mul(ctx, &a_wire, &b_wire);
 
-            gle_chip.assert_equal(ctx, &c1, &c2);
+            assert_eq!(c_wire.value(), a * b);
         }
 
         builder.calculate_params(Some(unusable_rows));

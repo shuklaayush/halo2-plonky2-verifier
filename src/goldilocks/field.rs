@@ -12,10 +12,9 @@ const MAX_PHASE: usize = 3;
 pub struct GoldilocksWire<F: ScalarField>(AssignedValue<F>);
 
 impl<F: ScalarField> GoldilocksWire<F> {
-    pub fn value(&self) -> u64 {
+    pub fn value(&self) -> GoldilocksField {
         let val = self.0.value();
-        debug_assert!(val < &F::from(GoldilocksField::ORDER));
-        val.get_lower_64()
+        GoldilocksField::from_canonical_u64(val.get_lower_64())
     }
 }
 
@@ -224,8 +223,9 @@ impl<F: ScalarField> GoldilocksChip<F> {
         c: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
         // 1. Calculate hint
-        let product: u128 = (a.value() as u128) * (b.value() as u128);
-        let sum = product + (c.value() as u128);
+        let product: u128 =
+            (a.value().to_canonical_u64() as u128) * (b.value().to_canonical_u64() as u128);
+        let sum = product + (c.value().to_canonical_u64() as u128);
         let quotient = (sum / (GoldilocksField::ORDER as u128)) as u64;
         let remainder = (sum % (GoldilocksField::ORDER as u128)) as u64;
 
@@ -287,13 +287,11 @@ mod tests {
             let a = GoldilocksField::rand();
             let b = GoldilocksField::rand();
 
-            let c1 = gl_chip.load_constant(ctx, a * b);
-
             let a_wire = gl_chip.load_constant(ctx, a);
             let b_wire = gl_chip.load_constant(ctx, b);
-            let c2 = gl_chip.mul(ctx, &a_wire, &b_wire);
+            let c_wire = gl_chip.mul(ctx, &a_wire, &b_wire);
 
-            gl_chip.assert_equal(ctx, &c1, &c2);
+            assert_eq!(c_wire.value(), a * b);
         }
 
         builder.calculate_params(Some(unusable_rows));
