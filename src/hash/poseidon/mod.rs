@@ -1,1 +1,2 @@
-pub mod chip;
+pub mod hash;
+pub mod permutation;
