@@ -256,3 +256,49 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
         state
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
+    use halo2_base::halo2_proofs::dev::MockProver;
+    use halo2curves::bn256::Fr;
+    use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
+    use plonky2::hash::hash_types::NUM_HASH_OUT_ELTS;
+
+    #[test]
+    fn test_permute() {
+        let k = 16;
+        let lookup_bits = 8;
+        let unusable_rows = 9;
+
+        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
+        builder.set_lookup_bits(lookup_bits);
+
+        let permutation_chip = PoseidonPermutationChip::new(GoldilocksChip::<Fr>::new(
+            lookup_bits,
+            builder.lookup_manager().clone(),
+        ));
+        let goldilocks_chip = permutation_chip.goldilocks_chip();
+
+        let ctx = builder.main(0);
+
+        for _ in 0..10 {
+            let state_in = GoldilocksField::rand_array();
+            let state_in_wire =
+                PoseidonStateWire(goldilocks_chip.load_constant_array(ctx, &state_in));
+
+            let state_out = Poseidon::poseidon(state_in);
+            let state_out_wire = permutation_chip.permute(ctx, &state_in_wire);
+
+            for i in 0..NUM_HASH_OUT_ELTS {
+                assert_eq!(state_out[i], state_out_wire.0[i].value());
+            }
+        }
+
+        builder.calculate_params(Some(unusable_rows));
+        MockProver::run(k, &builder, vec![])
+            .unwrap()
+            .assert_satisfied();
+    }
+}
