@@ -44,7 +44,7 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         ])
     }
 
-    fn load_constants<const N: usize>(
+    fn load_constant_array<const N: usize>(
         &self,
         ctx: &mut Context<F>,
         a: &[QuadraticExtension<GoldilocksField>; N],

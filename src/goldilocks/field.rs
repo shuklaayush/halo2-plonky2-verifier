@@ -62,16 +62,25 @@ impl<F: ScalarField> GoldilocksChip<F> {
         GoldilocksWire(ctx.load_constant(F::from(a)))
     }
 
-    pub fn load_constants<const N: usize>(
+    pub fn load_constant_array<const N: usize>(
         &self,
         ctx: &mut Context<F>,
         a: &[GoldilocksField; N],
     ) -> [GoldilocksWire<F>; N] {
         a.iter()
             .map(|a| self.load_constant(ctx, *a))
-            .collect::<Vec<GoldilocksWire<F>>>() // TODO: There must be a better way
-            .try_into()
+            .collect::<Vec<GoldilocksWire<F>>>()
+            .try_into() // TODO: There must be a better way than try_into
             .unwrap()
+    }
+
+    // TODO: Only vec?
+    pub fn load_constant_slice(
+        &self,
+        ctx: &mut Context<F>,
+        a: &[GoldilocksField],
+    ) -> Vec<GoldilocksWire<F>> {
+        a.iter().map(|a| self.load_constant(ctx, *a)).collect()
     }
 
     pub fn load_witness(&self, ctx: &mut Context<F>, a: GoldilocksField) -> GoldilocksWire<F> {
@@ -91,6 +100,23 @@ impl<F: ScalarField> GoldilocksChip<F> {
         GoldilocksWire(gate.select(ctx, a.0, b.0, sel.0))
     }
 
+    pub fn select_array<const N: usize>(
+        &self,
+        ctx: &mut Context<F>,
+        a: [GoldilocksWire<F>; N],
+        b: [GoldilocksWire<F>; N],
+        sel: &GoldilocksWire<F>,
+    ) -> [GoldilocksWire<F>; N] {
+        let gate = self.gate();
+
+        a.iter()
+            .zip(b.iter())
+            .map(|(a, b)| GoldilocksWire(gate.select(ctx, a.0, b.0, sel.0)))
+            .collect::<Vec<GoldilocksWire<F>>>()
+            .try_into() // TODO: There must be a better way than try_into
+            .unwrap()
+    }
+
     pub fn select_from_idx(
         &self,
         ctx: &mut Context<F>,
@@ -106,12 +132,12 @@ impl<F: ScalarField> GoldilocksChip<F> {
         ))
     }
 
-    pub fn select_array_from_idx(
+    pub fn select_array_from_idx<const N: usize>(
         &self,
         ctx: &mut Context<F>,
-        arr: &[&[GoldilocksWire<F>]],
+        arr: &[[GoldilocksWire<F>; N]],
         idx: &GoldilocksWire<F>,
-    ) -> Vec<GoldilocksWire<F>> {
+    ) -> [GoldilocksWire<F>; N] {
         let gate = self.gate();
 
         let indicator = gate.idx_to_indicator(ctx, idx.0, arr.len());
@@ -128,6 +154,8 @@ impl<F: ScalarField> GoldilocksChip<F> {
             .iter()
             .map(|&x| GoldilocksWire(x))
             .collect::<Vec<_>>()
+            .try_into() // TODO: There must be a better way than try_into
+            .unwrap()
     }
 
     pub fn num_to_bits(
