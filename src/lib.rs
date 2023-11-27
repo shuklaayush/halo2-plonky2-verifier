@@ -1,14 +1,10 @@
 // #![cfg_attr(not(feature = "std"), no_std)]
 
-mod fields;
+mod goldilocks;
 mod hash;
 mod merkle;
 
 /*
-use goldilocks::fp::Goldilocks as Fp;
-
-pub struct MerkleCap(pub Vec<[Fp; 4]>);
-
 #[cfg(test)]
 mod tests {
     use super::*;
