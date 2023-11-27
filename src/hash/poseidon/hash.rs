@@ -127,7 +127,6 @@ mod tests {
             GoldilocksChip::<Fr>::new(lookup_bits, builder.lookup_manager().clone());
         let poseidon_chip = PoseidonChip::new(goldilocks_chip);
 
-        // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
         for _ in 0..10 {
@@ -160,16 +159,15 @@ mod tests {
         let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
-        let goldilocks_chip =
-            GoldilocksChip::<Fr>::new(lookup_bits, builder.lookup_manager().clone());
-        let poseidon_chip = PoseidonChip::new(goldilocks_chip);
+        let poseidon_chip = PoseidonChip::new(GoldilocksChip::<Fr>::new(
+            lookup_bits,
+            builder.lookup_manager().clone(),
+        ));
+        let goldilocks_chip = poseidon_chip.goldilocks_chip();
 
-        // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
         for _ in 0..10 {
-            let goldilocks_chip = poseidon_chip.goldilocks_chip();
-
             let hash1 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
             let hash1_wire = HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash1.elements));
 
@@ -185,7 +183,6 @@ mod tests {
         }
 
         builder.calculate_params(Some(unusable_rows));
-
         MockProver::run(k, &builder, vec![])
             .unwrap()
             .assert_satisfied();

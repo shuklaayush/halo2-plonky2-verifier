@@ -185,7 +185,6 @@ mod tests {
         let gl_chip = GoldilocksChip::<Fr>::new(lookup_bits, builder.lookup_manager().clone());
         let gle_chip = GoldilocksQuadExtChip::new(gl_chip);
 
-        // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
         for _ in 0..100 {
@@ -200,7 +199,6 @@ mod tests {
         }
 
         builder.calculate_params(Some(unusable_rows));
-
         MockProver::run(k, &builder, vec![])
             .unwrap()
             .assert_satisfied();

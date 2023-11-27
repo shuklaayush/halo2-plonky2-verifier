@@ -127,17 +127,16 @@ mod tests {
         let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
-        let goldilocks_chip =
-            GoldilocksChip::<Fr>::new(lookup_bits, builder.lookup_manager().clone());
-        let poseidon_chip = PoseidonChip::new(goldilocks_chip);
+        let poseidon_chip = PoseidonChip::new(GoldilocksChip::<Fr>::new(
+            lookup_bits,
+            builder.lookup_manager().clone(),
+        ));
         let merkle_chip = MerkleTreeChip::new(poseidon_chip);
+        let goldilocks_chip = merkle_chip.goldilocks_chip();
 
-        // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
         for _ in 0..2 {
-            let goldilocks_chip = merkle_chip.goldilocks_chip();
-
             let leaves = (0..8) // TODO: No hardcode
                 .map(|_| GoldilocksField::rand_vec(4))
                 .collect::<Vec<_>>();
@@ -191,7 +190,6 @@ mod tests {
         }
 
         builder.calculate_params(Some(unusable_rows));
-
         MockProver::run(k, &builder, vec![])
             .unwrap()
             .assert_satisfied();
@@ -208,17 +206,16 @@ mod tests {
         let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
         builder.set_lookup_bits(lookup_bits);
 
-        let goldilocks_chip =
-            GoldilocksChip::<Fr>::new(lookup_bits, builder.lookup_manager().clone());
-        let poseidon_chip = PoseidonChip::new(goldilocks_chip);
+        let poseidon_chip = PoseidonChip::new(GoldilocksChip::<Fr>::new(
+            lookup_bits,
+            builder.lookup_manager().clone(),
+        ));
         let merkle_chip = MerkleTreeChip::new(poseidon_chip);
+        let goldilocks_chip = merkle_chip.goldilocks_chip();
 
-        // TODO: What is builder.main(0)?
         let ctx = builder.main(0);
 
         for _ in 0..2 {
-            let goldilocks_chip = merkle_chip.goldilocks_chip();
-
             let leaves = (0..8) // TODO: No hardcode
                 .map(|_| GoldilocksField::rand_vec(4))
                 .collect::<Vec<_>>();
@@ -263,7 +260,6 @@ mod tests {
         }
 
         builder.calculate_params(Some(unusable_rows));
-
         MockProver::run(k, &builder, vec![])
             .unwrap()
             .assert_satisfied();

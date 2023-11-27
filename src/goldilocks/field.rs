@@ -295,7 +295,6 @@ mod tests {
         }
 
         builder.calculate_params(Some(unusable_rows));
-
         MockProver::run(k, &builder, vec![])
             .unwrap()
             .assert_satisfied();
