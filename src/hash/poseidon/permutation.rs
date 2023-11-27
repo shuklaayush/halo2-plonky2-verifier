@@ -79,7 +79,7 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
         let chip = self.goldilocks_chip();
 
         // TODO: Ugly
-        let mut result = chip.load_constants(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]);
+        let mut result = chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]);
         for r in 0..SPONGE_WIDTH {
             result[r] = self.mds_row_shf(ctx, r, &state.0);
         }
@@ -108,7 +108,7 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
     ) -> PoseidonStateWire<F> {
         let chip = self.goldilocks_chip();
 
-        let mut result = chip.load_constants(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]);
+        let mut result = chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]);
         result[0] = state.0[0];
 
         // TODO: Use inner product gate instead of nested for loop
@@ -152,7 +152,7 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
             d = chip.mul_add(ctx, &t, &state.0[i], &d);
         }
 
-        let mut result = chip.load_constants(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]);
+        let mut result = chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]);
         result[0] = d;
         for i in 1..SPONGE_WIDTH {
             let t = chip.load_constant(

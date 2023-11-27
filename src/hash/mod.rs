@@ -7,7 +7,7 @@ use crate::goldilocks::field::GoldilocksWire;
 
 /// Represents a ~256 bit hash output.
 #[derive(Copy, Clone, Debug)]
-pub struct HashOutWire<F: ScalarField>([GoldilocksWire<F>; NUM_HASH_OUT_ELTS]);
+pub struct HashOutWire<F: ScalarField>(pub [GoldilocksWire<F>; NUM_HASH_OUT_ELTS]);
 
 impl<F: ScalarField> HashOutWire<F> {
     pub fn from_partial(elements_in: &[GoldilocksWire<F>], zero: GoldilocksWire<F>) -> Self {
