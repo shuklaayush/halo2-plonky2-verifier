@@ -8,7 +8,7 @@ use plonky2::field::types::{Field, Field64, PrimeField64};
 
 const MAX_PHASE: usize = 3;
 
-#[derive(Debug, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GoldilocksWire<F: ScalarField>(AssignedValue<F>);
 
 impl<F: ScalarField> GoldilocksWire<F> {
@@ -28,6 +28,7 @@ impl<F: ScalarField> GoldilocksWire<F> {
 
 // TODO: Reference and lifetimes? Should GoldilocksChip own RangeChip?
 //       Add, mul as trait implementations for GoldilocksWire instead of GoldilocksChip?
+//       Generic FieldChip trait?
 #[derive(Debug, Clone)]
 pub struct GoldilocksChip<F: ScalarField> {
     pub range: RangeChip<F>, // TODO: Change to reference and add lifetime?
@@ -51,6 +52,11 @@ impl<F: ScalarField> GoldilocksChip<F> {
 
 // TODO: Abstract away as generic FieldChip trait?
 impl<F: ScalarField> GoldilocksChip<F> {
+    pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
+        GoldilocksWire(ctx.load_zero())
+    }
+
+    // TODO: Keep a track of constants loaded to avoid loading them multiple times?
     pub fn load_constant(&self, ctx: &mut Context<F>, a: GoldilocksField) -> GoldilocksWire<F> {
         let a = a.to_canonical_u64();
         GoldilocksWire(ctx.load_constant(F::from(a)))

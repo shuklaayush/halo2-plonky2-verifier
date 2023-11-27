@@ -6,10 +6,10 @@ use plonky2::field::extension::Extendable;
 use plonky2::field::extension::FieldExtension;
 use plonky2::field::goldilocks_field::GoldilocksField;
 
-use super::fp::{GoldilocksChip, GoldilocksWire};
+use super::field::{GoldilocksChip, GoldilocksWire};
 
 // TODO: Use const generics for arbitrary GoldilocksExtWire
-#[derive(Debug, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GoldilocksQuadExtWire<F: ScalarField>([GoldilocksWire<F>; 2]);
 
 // TODO: Reference and lifetimes? Should GoldilocksExtensionChip own GoldilocksChip?
