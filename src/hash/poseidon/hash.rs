@@ -113,13 +113,9 @@ mod tests {
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
     use plonky2::hash::poseidon::PoseidonHash;
     use plonky2::plonk::config::Hasher;
-    use rand::rngs::StdRng;
-    use rand_core::SeedableRng;
 
     #[test]
     fn test_hash_no_pad() {
-        let mut rng = StdRng::seed_from_u64(0);
-
         let k = 16;
         let lookup_bits = 8;
         let unusable_rows = 9;
@@ -137,16 +133,14 @@ mod tests {
         for _ in 0..10 {
             let goldilocks_chip = poseidon_chip.goldilocks_chip();
 
-            let preimage = GoldilocksField::sample(&mut rng);
+            let preimage = GoldilocksField::rand();
+            let preimage_wire = goldilocks_chip.load_witness(ctx, preimage);
 
             let hash = PoseidonHash::hash_no_pad(&[preimage]);
-            let hash_wire1 = goldilocks_chip.load_constant_array(ctx, &hash.elements);
-
-            let preimage_wire = goldilocks_chip.load_witness(ctx, preimage);
-            let hash_wire2 = poseidon_chip.hash_no_pad(ctx, &[preimage_wire]);
+            let hash_wire = poseidon_chip.hash_no_pad(ctx, &[preimage_wire]);
 
             for i in 0..NUM_HASH_OUT_ELTS {
-                goldilocks_chip.assert_equal(ctx, &hash_wire1[i], &hash_wire2.0[i]);
+                assert_eq!(hash.elements[i], hash_wire.0[i].value());
             }
         }
 
@@ -159,8 +153,6 @@ mod tests {
 
     #[test]
     fn test_hash_two_to_one() {
-        let mut rng = StdRng::seed_from_u64(0);
-
         let k = 16;
         let lookup_bits = 8;
         let unusable_rows = 9;
@@ -178,19 +170,17 @@ mod tests {
         for _ in 0..10 {
             let goldilocks_chip = poseidon_chip.goldilocks_chip();
 
-            let hash1 = PoseidonHash::hash_no_pad(&[GoldilocksField::sample(&mut rng)]);
-            let hash2 = PoseidonHash::hash_no_pad(&[GoldilocksField::sample(&mut rng)]);
-
-            let hash_res1 = PoseidonHash::two_to_one(hash1, hash2);
-            let hash_res_wire1 = goldilocks_chip.load_constant_array(ctx, &hash_res1.elements);
-
+            let hash1 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
             let hash1_wire = HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash1.elements));
+
+            let hash2 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
             let hash2_wire = HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash2.elements));
 
-            let hash_res_wire2 = poseidon_chip.two_to_one(ctx, &hash1_wire, &hash2_wire);
+            let hash_res = PoseidonHash::two_to_one(hash1, hash2);
+            let hash_res_wire = poseidon_chip.two_to_one(ctx, &hash1_wire, &hash2_wire);
 
             for i in 0..NUM_HASH_OUT_ELTS {
-                goldilocks_chip.assert_equal(ctx, &hash_res_wire1[i], &hash_res_wire2.0[i]);
+                assert_eq!(hash_res.elements[i], hash_res_wire.0[i].value());
             }
         }
 
