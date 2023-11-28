@@ -126,7 +126,7 @@ mod tests {
 
             for _ in 0..2 {
                 let leaves = (0..8) // TODO: No hardcode
-                    .map(|_| GoldilocksField::rand_vec(4))
+                    .map(|_| GoldilocksField::rand_vec(20))
                     .collect::<Vec<_>>();
 
                 let cap_height = 1;
@@ -183,14 +183,14 @@ mod tests {
     fn test_verify_proof() {
         let mut rng = StdRng::seed_from_u64(0u64);
 
-        base_test().k(12).run(|ctx, range| {
+        base_test().k(14).run(|ctx, range| {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
             let merkle_chip = MerkleTreeChip::new(poseidon_chip);
 
             for _ in 0..2 {
                 let leaves = (0..8) // TODO: No hardcode
-                    .map(|_| GoldilocksField::rand_vec(4))
+                    .map(|_| GoldilocksField::rand_vec(20))
                     .collect::<Vec<_>>();
 
                 let merkle_tree =

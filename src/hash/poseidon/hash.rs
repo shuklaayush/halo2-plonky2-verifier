@@ -77,7 +77,7 @@ impl<F: ScalarField> PoseidonChip<F> {
 
         // Squeeze until we have the desired number of outputs.
         // TODO: Fix
-        HashOutWire(state.0[..4].try_into().unwrap())
+        HashOutWire(state.0[..NUM_HASH_OUT_ELTS].try_into().unwrap())
     }
 
     // TODO: Dedup by reusing hash_no_pad
@@ -94,13 +94,13 @@ impl<F: ScalarField> PoseidonChip<F> {
             gl_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]),
         );
 
-        state.0[0..4].copy_from_slice(left.0.as_slice());
-        state.0[4..8].copy_from_slice(right.0.as_slice());
+        state.0[0..NUM_HASH_OUT_ELTS].copy_from_slice(left.0.as_slice());
+        state.0[NUM_HASH_OUT_ELTS..2 * NUM_HASH_OUT_ELTS].copy_from_slice(right.0.as_slice());
 
         state = permutation_chip.permute(ctx, &state);
 
         // TODO: Fix
-        HashOutWire(state.0[..4].try_into().unwrap())
+        HashOutWire(state.0[..NUM_HASH_OUT_ELTS].try_into().unwrap())
     }
 }
 
