@@ -8,8 +8,6 @@ edition = "2021"
 [dependencies]
 ff = { version = "0.13.0" }
 
-halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves" }
-
 halo2-base = { git = "https://github.com/axiom-crypto/halo2-lib", branch = "community-edition"}
 halo2-ecc = { git = "https://github.com/axiom-crypto/halo2-lib", branch = "community-edition" }
 

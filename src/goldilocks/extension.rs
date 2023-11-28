@@ -167,40 +167,27 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
-    use halo2_base::halo2_proofs::dev::MockProver;
-    use halo2curves::bn256::Fr;
+    use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
+    use halo2_base::utils::testing::base_test;
     use plonky2::field::extension::quadratic::QuadraticExtension;
     use plonky2::field::types::Sample;
 
     #[test]
     fn test_goldilocks_extension_chip() {
-        let k = 16;
-        let lookup_bits = 8;
-        let unusable_rows = 9;
+        base_test().k(12).run(|ctx, range| {
+            let gl_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let gle_chip = GoldilocksQuadExtChip::new(gl_chip);
 
-        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
-        builder.set_lookup_bits(lookup_bits);
+            for _ in 0..100 {
+                let a = QuadraticExtension::rand();
+                let b = QuadraticExtension::rand();
 
-        let gl_chip = GoldilocksChip::<Fr>::new(lookup_bits, builder.lookup_manager().clone());
-        let gle_chip = GoldilocksQuadExtChip::new(gl_chip);
+                let a_wire = gle_chip.load_constant(ctx, a);
+                let b_wire = gle_chip.load_constant(ctx, b);
+                let c_wire = gle_chip.mul(ctx, &a_wire, &b_wire);
 
-        let ctx = builder.main(0);
-
-        for _ in 0..100 {
-            let a = QuadraticExtension::rand();
-            let b = QuadraticExtension::rand();
-
-            let a_wire = gle_chip.load_constant(ctx, a);
-            let b_wire = gle_chip.load_constant(ctx, b);
-            let c_wire = gle_chip.mul(ctx, &a_wire, &b_wire);
-
-            assert_eq!(c_wire.value(), a * b);
-        }
-
-        builder.calculate_params(Some(unusable_rows));
-        MockProver::run(k, &builder, vec![])
-            .unwrap()
-            .assert_satisfied();
+                assert_eq!(c_wire.value(), a * b);
+            }
+        });
     }
 }

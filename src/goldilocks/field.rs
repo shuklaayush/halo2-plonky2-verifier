@@ -1,12 +1,9 @@
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::gates::{GateInstructions, RangeInstructions};
 use halo2_base::utils::ScalarField;
-use halo2_base::virtual_region::lookups::LookupAnyManager;
 use halo2_base::{AssignedValue, Context};
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::{Field, Field64, PrimeField64};
-
-const MAX_PHASE: usize = 3;
 
 #[derive(Copy, Clone, Debug)]
 pub struct GoldilocksWire<F: ScalarField>(AssignedValue<F>);
@@ -34,10 +31,8 @@ pub struct GoldilocksChip<F: ScalarField> {
 }
 
 impl<F: ScalarField> GoldilocksChip<F> {
-    pub fn new(lookup_bits: usize, lookup_manager: [LookupAnyManager<F, 1>; MAX_PHASE]) -> Self {
-        Self {
-            range: RangeChip::<F>::new(lookup_bits, lookup_manager),
-        }
+    pub fn new(range: RangeChip<F>) -> Self {
+        Self { range }
     }
 
     pub fn gate(&self) -> &GateChip<F> {
@@ -264,39 +259,25 @@ impl<F: ScalarField> GoldilocksChip<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
-    use halo2_base::halo2_proofs::dev::MockProver;
-    use halo2curves::bn256::Fr;
+    use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
+    use halo2_base::utils::testing::base_test;
     use plonky2::field::types::Sample;
 
     #[test]
     fn test_mul() {
-        let k = 16;
-        let lookup_bits = 8;
-        let unusable_rows = 9;
+        base_test().k(12).run(|ctx, range| {
+            let gl_chip = GoldilocksChip::<Fr>::new(range.clone()); // TODO: Remove clone, store reference
 
-        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
-        builder.set_lookup_bits(lookup_bits);
+            for _ in 0..100 {
+                let a = GoldilocksField::rand();
+                let b = GoldilocksField::rand();
 
-        let gl_chip = GoldilocksChip::<Fr>::new(lookup_bits, builder.lookup_manager().clone()); // TODO: Why clone?
+                let a_wire = gl_chip.load_constant(ctx, a);
+                let b_wire = gl_chip.load_constant(ctx, b);
+                let c_wire = gl_chip.mul(ctx, &a_wire, &b_wire);
 
-        // TODO: What is builder.main(0)?
-        let ctx = builder.main(0);
-
-        for _ in 0..100 {
-            let a = GoldilocksField::rand();
-            let b = GoldilocksField::rand();
-
-            let a_wire = gl_chip.load_constant(ctx, a);
-            let b_wire = gl_chip.load_constant(ctx, b);
-            let c_wire = gl_chip.mul(ctx, &a_wire, &b_wire);
-
-            assert_eq!(c_wire.value(), a * b);
-        }
-
-        builder.calculate_params(Some(unusable_rows));
-        MockProver::run(k, &builder, vec![])
-            .unwrap()
-            .assert_satisfied();
+                assert_eq!(c_wire.value(), a * b);
+            }
+        })
     }
 }

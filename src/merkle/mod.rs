@@ -104,9 +104,8 @@ impl<F: ScalarField> MerkleTreeChip<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
-    use halo2_base::halo2_proofs::dev::MockProver;
-    use halo2curves::bn256::Fr;
+    use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
+    use halo2_base::utils::testing::base_test;
     use plonky2::field::types::Field;
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
     use plonky2::hash::merkle_proofs::{verify_merkle_proof, verify_merkle_proof_to_cap};
@@ -120,148 +119,119 @@ mod tests {
     fn test_verify_proof_to_cap() {
         let mut rng = StdRng::seed_from_u64(0u64);
 
-        let k = 16;
-        let lookup_bits = 8;
-        let unusable_rows = 9;
+        base_test().k(12).run(|ctx, range| {
+            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
+            let merkle_chip = MerkleTreeChip::new(poseidon_chip);
 
-        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
-        builder.set_lookup_bits(lookup_bits);
+            for _ in 0..2 {
+                let leaves = (0..8) // TODO: No hardcode
+                    .map(|_| GoldilocksField::rand_vec(4))
+                    .collect::<Vec<_>>();
 
-        let poseidon_chip = PoseidonChip::new(GoldilocksChip::<Fr>::new(
-            lookup_bits,
-            builder.lookup_manager().clone(),
-        ));
-        let merkle_chip = MerkleTreeChip::new(poseidon_chip);
-        let goldilocks_chip = merkle_chip.goldilocks_chip();
+                let cap_height = 1;
+                let merkle_tree =
+                    MerkleTree::<GoldilocksField, PoseidonHash>::new(leaves.clone(), cap_height);
 
-        let ctx = builder.main(0);
+                let leaf_idx = rng.gen_range(0..leaves.len());
+                let leaf_idx_wire = goldilocks_chip
+                    .load_constant(ctx, GoldilocksField::from_canonical_usize(leaf_idx));
+                let merkle_proof = merkle_tree.prove(leaf_idx);
 
-        for _ in 0..2 {
-            let leaves = (0..8) // TODO: No hardcode
-                .map(|_| GoldilocksField::rand_vec(4))
-                .collect::<Vec<_>>();
+                verify_merkle_proof_to_cap(
+                    leaves[leaf_idx].clone(),
+                    leaf_idx,
+                    &merkle_tree.cap,
+                    &merkle_proof,
+                )
+                .unwrap();
 
-            let cap_height = 1;
-            let merkle_tree =
-                MerkleTree::<GoldilocksField, PoseidonHash>::new(leaves.clone(), cap_height);
+                let cap_wire = MerkleCapWire(
+                    (0..merkle_tree.cap.0.len())
+                        .map(|i| {
+                            HashOutWire(
+                                goldilocks_chip
+                                    .load_constant_array(ctx, &merkle_tree.cap.0[i].elements),
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                );
+                let leaf_wire = goldilocks_chip
+                    .load_constant_slice(ctx, merkle_tree.leaves[leaf_idx].as_slice());
+                let proof_wire = MerkleProofWire(
+                    merkle_proof
+                        .siblings
+                        .iter()
+                        .map(|sibling| {
+                            HashOutWire(goldilocks_chip.load_constant_array(ctx, &sibling.elements))
+                        })
+                        .collect::<Vec<_>>(),
+                );
 
-            let leaf_idx = rng.gen_range(0..leaves.len());
-            let leaf_idx_wire =
-                goldilocks_chip.load_constant(ctx, GoldilocksField::from_canonical_usize(leaf_idx));
-            let merkle_proof = merkle_tree.prove(leaf_idx);
-
-            verify_merkle_proof_to_cap(
-                leaves[leaf_idx].clone(),
-                leaf_idx,
-                &merkle_tree.cap,
-                &merkle_proof,
-            )
-            .unwrap();
-
-            let cap_wire = MerkleCapWire(
-                (0..merkle_tree.cap.0.len())
-                    .map(|i| {
-                        HashOutWire(
-                            goldilocks_chip
-                                .load_constant_array(ctx, &merkle_tree.cap.0[i].elements),
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            );
-            let leaf_wire =
-                goldilocks_chip.load_constant_slice(ctx, merkle_tree.leaves[leaf_idx].as_slice());
-            let proof_wire = MerkleProofWire(
-                merkle_proof
-                    .siblings
-                    .iter()
-                    .map(|sibling| {
-                        HashOutWire(goldilocks_chip.load_constant_array(ctx, &sibling.elements))
-                    })
-                    .collect::<Vec<_>>(),
-            );
-
-            merkle_chip.verify_merkle_proof_to_cap(
-                ctx,
-                &leaf_wire,
-                &leaf_idx_wire,
-                &cap_wire,
-                &proof_wire,
-            );
-        }
-
-        builder.calculate_params(Some(unusable_rows));
-        MockProver::run(k, &builder, vec![])
-            .unwrap()
-            .assert_satisfied();
+                merkle_chip.verify_merkle_proof_to_cap(
+                    ctx,
+                    &leaf_wire,
+                    &leaf_idx_wire,
+                    &cap_wire,
+                    &proof_wire,
+                );
+            }
+        });
     }
 
     #[test]
     fn test_verify_proof() {
         let mut rng = StdRng::seed_from_u64(0u64);
 
-        let k = 16;
-        let lookup_bits = 8;
-        let unusable_rows = 9;
+        base_test().k(12).run(|ctx, range| {
+            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
+            let merkle_chip = MerkleTreeChip::new(poseidon_chip);
 
-        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
-        builder.set_lookup_bits(lookup_bits);
+            for _ in 0..2 {
+                let leaves = (0..8) // TODO: No hardcode
+                    .map(|_| GoldilocksField::rand_vec(4))
+                    .collect::<Vec<_>>();
 
-        let poseidon_chip = PoseidonChip::new(GoldilocksChip::<Fr>::new(
-            lookup_bits,
-            builder.lookup_manager().clone(),
-        ));
-        let merkle_chip = MerkleTreeChip::new(poseidon_chip);
-        let goldilocks_chip = merkle_chip.goldilocks_chip();
+                let merkle_tree =
+                    MerkleTree::<GoldilocksField, PoseidonHash>::new(leaves.clone(), 0);
 
-        let ctx = builder.main(0);
+                let leaf_idx = rng.gen_range(0..leaves.len());
+                let leaf_idx_wire = goldilocks_chip
+                    .load_constant(ctx, GoldilocksField::from_canonical_usize(leaf_idx));
+                let merkle_proof = merkle_tree.prove(leaf_idx);
 
-        for _ in 0..2 {
-            let leaves = (0..8) // TODO: No hardcode
-                .map(|_| GoldilocksField::rand_vec(4))
-                .collect::<Vec<_>>();
+                verify_merkle_proof(
+                    leaves[leaf_idx].clone(),
+                    leaf_idx,
+                    merkle_tree.cap.0[0],
+                    &merkle_proof,
+                )
+                .unwrap();
 
-            let merkle_tree = MerkleTree::<GoldilocksField, PoseidonHash>::new(leaves.clone(), 0);
+                let root_wire = HashOutWire(
+                    goldilocks_chip.load_constant_array(ctx, &merkle_tree.cap.0[0].elements),
+                );
+                let leaf_wire = goldilocks_chip
+                    .load_constant_slice(ctx, merkle_tree.leaves[leaf_idx].as_slice());
+                let proof_wire = MerkleProofWire(
+                    merkle_proof
+                        .siblings
+                        .iter()
+                        .map(|sibling| {
+                            HashOutWire(goldilocks_chip.load_constant_array(ctx, &sibling.elements))
+                        })
+                        .collect::<Vec<_>>(),
+                );
 
-            let leaf_idx = rng.gen_range(0..leaves.len());
-            let leaf_idx_wire =
-                goldilocks_chip.load_constant(ctx, GoldilocksField::from_canonical_usize(leaf_idx));
-            let merkle_proof = merkle_tree.prove(leaf_idx);
-
-            verify_merkle_proof(
-                leaves[leaf_idx].clone(),
-                leaf_idx,
-                merkle_tree.cap.0[0],
-                &merkle_proof,
-            )
-            .unwrap();
-
-            let root_wire = HashOutWire(
-                goldilocks_chip.load_constant_array(ctx, &merkle_tree.cap.0[0].elements),
-            );
-            let leaf_wire =
-                goldilocks_chip.load_constant_slice(ctx, merkle_tree.leaves[leaf_idx].as_slice());
-            let proof_wire = MerkleProofWire(
-                merkle_proof
-                    .siblings
-                    .iter()
-                    .map(|sibling| {
-                        HashOutWire(goldilocks_chip.load_constant_array(ctx, &sibling.elements))
-                    })
-                    .collect::<Vec<_>>(),
-            );
-
-            merkle_chip.verify_merkle_proof(
-                ctx,
-                &leaf_wire,
-                &leaf_idx_wire,
-                &root_wire,
-                &proof_wire,
-            );
-        }
-
-        builder.calculate_params(Some(unusable_rows));
-        MockProver::run(k, &builder, vec![])
-            .unwrap()
-            .assert_satisfied();
+                merkle_chip.verify_merkle_proof(
+                    ctx,
+                    &leaf_wire,
+                    &leaf_idx_wire,
+                    &root_wire,
+                    &proof_wire,
+                );
+            }
+        })
     }
 }

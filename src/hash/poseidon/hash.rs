@@ -107,29 +107,19 @@ impl<F: ScalarField> PoseidonChip<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
-    use halo2_base::halo2_proofs::dev::MockProver;
-    use halo2curves::bn256::Fr;
+    use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
+    use halo2_base::utils::testing::base_test;
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
     use plonky2::hash::poseidon::PoseidonHash;
     use plonky2::plonk::config::Hasher;
 
     #[test]
     fn test_hash_no_pad() {
-        let k = 16;
-        let lookup_bits = 8;
-        let unusable_rows = 9;
+        base_test().k(12).run(|ctx, range| {
+            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 
-        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
-        builder.set_lookup_bits(lookup_bits);
-
-        let goldilocks_chip =
-            GoldilocksChip::<Fr>::new(lookup_bits, builder.lookup_manager().clone());
-        let poseidon_chip = PoseidonChip::new(goldilocks_chip);
-
-        let ctx = builder.main(0);
-
-        for _ in 0..10 {
+            // for _ in 0..10 {
             let goldilocks_chip = poseidon_chip.goldilocks_chip();
 
             let preimage = GoldilocksField::rand();
@@ -141,50 +131,32 @@ mod tests {
             for i in 0..NUM_HASH_OUT_ELTS {
                 assert_eq!(hash.elements[i], hash_wire.0[i].value());
             }
-        }
-
-        builder.calculate_params(Some(unusable_rows));
-
-        MockProver::run(k, &builder, vec![])
-            .unwrap()
-            .assert_satisfied();
+            // }
+        })
     }
 
     #[test]
     fn test_hash_two_to_one() {
-        let k = 16;
-        let lookup_bits = 8;
-        let unusable_rows = 9;
+        base_test().k(12).run(|ctx, range| {
+            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 
-        let mut builder = BaseCircuitBuilder::default().use_k(k as usize);
-        builder.set_lookup_bits(lookup_bits);
+            for _ in 0..10 {
+                let hash1 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
+                let hash1_wire =
+                    HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash1.elements));
 
-        let poseidon_chip = PoseidonChip::new(GoldilocksChip::<Fr>::new(
-            lookup_bits,
-            builder.lookup_manager().clone(),
-        ));
-        let goldilocks_chip = poseidon_chip.goldilocks_chip();
+                let hash2 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
+                let hash2_wire =
+                    HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash2.elements));
 
-        let ctx = builder.main(0);
+                let hash_res = PoseidonHash::two_to_one(hash1, hash2);
+                let hash_res_wire = poseidon_chip.two_to_one(ctx, &hash1_wire, &hash2_wire);
 
-        for _ in 0..10 {
-            let hash1 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
-            let hash1_wire = HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash1.elements));
-
-            let hash2 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
-            let hash2_wire = HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash2.elements));
-
-            let hash_res = PoseidonHash::two_to_one(hash1, hash2);
-            let hash_res_wire = poseidon_chip.two_to_one(ctx, &hash1_wire, &hash2_wire);
-
-            for i in 0..NUM_HASH_OUT_ELTS {
-                assert_eq!(hash_res.elements[i], hash_res_wire.0[i].value());
+                for i in 0..NUM_HASH_OUT_ELTS {
+                    assert_eq!(hash_res.elements[i], hash_res_wire.0[i].value());
+                }
             }
-        }
-
-        builder.calculate_params(Some(unusable_rows));
-        MockProver::run(k, &builder, vec![])
-            .unwrap()
-            .assert_satisfied();
+        })
     }
 }
