@@ -33,7 +33,7 @@ impl<F: ScalarField> MerkleTreeChip<F> {
     }
 
     pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
-        &self.poseidon_chip.goldilocks_chip()
+        self.poseidon_chip.goldilocks_chip()
     }
 
     pub fn poseidon_chip(&self) -> &PoseidonChip<F> {

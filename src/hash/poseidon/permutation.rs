@@ -188,10 +188,10 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
     fn sbox_monomial(&self, ctx: &mut Context<F>, x: &GoldilocksWire<F>) -> GoldilocksWire<F> {
         let chip = self.goldilocks_chip();
 
-        let x2 = chip.mul(ctx, x, &x);
+        let x2 = chip.mul(ctx, x, x);
         let x4 = chip.mul(ctx, &x2, &x2);
         let x6 = chip.mul(ctx, &x4, &x2);
-        chip.mul(ctx, &x6, &x)
+        chip.mul(ctx, &x6, x)
     }
 
     fn sbox_layer(&self, ctx: &mut Context<F>, state: &mut PoseidonStateWire<F>) {

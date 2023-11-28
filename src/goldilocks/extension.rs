@@ -87,8 +87,8 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         let GoldilocksQuadExtWire([b0, b1]) = b;
 
         GoldilocksQuadExtWire([
-            self.goldilocks_chip.add(ctx, &a0, &b0),
-            self.goldilocks_chip.add(ctx, &a1, &b1),
+            self.goldilocks_chip.add(ctx, a0, b0),
+            self.goldilocks_chip.add(ctx, a1, b1),
         ])
     }
 
@@ -102,8 +102,8 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         let GoldilocksQuadExtWire([b0, b1]) = b;
 
         GoldilocksQuadExtWire([
-            self.goldilocks_chip.sub(ctx, &a0, &b0),
-            self.goldilocks_chip.sub(ctx, &a1, &b1),
+            self.goldilocks_chip.sub(ctx, a0, b0),
+            self.goldilocks_chip.sub(ctx, a1, b1),
         ])
     }
 
@@ -120,13 +120,13 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         let w = self
             .goldilocks_chip
             .load_constant(ctx, <GoldilocksField as Extendable<2>>::W); // TODO: Cache
-        let a0b0 = self.goldilocks_chip.mul(ctx, &a0, &b0);
-        let a1b1 = self.goldilocks_chip.mul(ctx, &a1, &b1);
+        let a0b0 = self.goldilocks_chip.mul(ctx, a0, b0);
+        let a1b1 = self.goldilocks_chip.mul(ctx, a1, b1);
         let wa1b1 = self.goldilocks_chip.mul(ctx, &w, &a1b1);
         let c0 = self.goldilocks_chip.add(ctx, &a0b0, &wa1b1);
 
-        let a0b1 = self.goldilocks_chip.mul(ctx, &a0, &b1);
-        let a1b0 = self.goldilocks_chip.mul(ctx, &a1, &b0);
+        let a0b1 = self.goldilocks_chip.mul(ctx, a0, b1);
+        let a1b0 = self.goldilocks_chip.mul(ctx, a1, b0);
         let c1 = self.goldilocks_chip.add(ctx, &a0b1, &a1b0);
 
         GoldilocksQuadExtWire([c0, c1])
@@ -146,8 +146,8 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
     pub fn range_check(&self, ctx: &mut Context<F>, a: &GoldilocksQuadExtWire<F>) {
         let GoldilocksQuadExtWire([a0, a1]) = a;
 
-        self.goldilocks_chip.range_check(ctx, &a0);
-        self.goldilocks_chip.range_check(ctx, &a1);
+        self.goldilocks_chip.range_check(ctx, a0);
+        self.goldilocks_chip.range_check(ctx, a1);
     }
 
     pub fn assert_equal(
@@ -159,8 +159,8 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         let GoldilocksQuadExtWire([a0, a1]) = a;
         let GoldilocksQuadExtWire([b0, b1]) = b;
 
-        self.goldilocks_chip.assert_equal(ctx, &a0, &b0);
-        self.goldilocks_chip.assert_equal(ctx, &a1, &b1);
+        self.goldilocks_chip.assert_equal(ctx, a0, b0);
+        self.goldilocks_chip.assert_equal(ctx, a1, b1);
     }
 }
 

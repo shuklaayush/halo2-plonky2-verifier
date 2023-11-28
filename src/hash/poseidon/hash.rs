@@ -48,9 +48,9 @@ impl<F: ScalarField> PoseidonChip<F> {
 
         let zero = chip.load_zero(ctx);
         if inputs.len() <= NUM_HASH_OUT_ELTS {
-            HashOutWire::from_partial(&inputs, zero)
+            HashOutWire::from_partial(inputs, zero)
         } else {
-            self.hash_no_pad(ctx, &inputs)
+            self.hash_no_pad(ctx, inputs)
         }
     }
 
