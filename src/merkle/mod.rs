@@ -1,9 +1,10 @@
 use halo2_base::gates::{GateChip, RangeChip};
-use halo2_base::utils::{log2_ceil, ScalarField};
+use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::hash::hash_types::NUM_HASH_OUT_ELTS;
+use plonky2::util::log2_ceil;
 
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::hash::poseidon::hash::PoseidonChip;
@@ -42,7 +43,7 @@ impl<F: ScalarField> MerkleTreeChip<F> {
 
     // TODO: This is effectively checking doing merkle proof for a subtree
     //       Maybe there's a bettter abstraction?
-    pub fn verify_merkle_proof_to_cap(
+    pub fn verify_proof_to_cap(
         &self,
         ctx: &mut Context<F>,
         leaf_data: &[GoldilocksWire<F>],
@@ -54,7 +55,7 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         let goldilocks_chip = poseidon_chip.goldilocks_chip();
 
         // To select whether current element is left or right child
-        let log_n = proof.0.len() + log2_ceil(merkle_cap.0.len() as u64);
+        let log_n = proof.0.len() + log2_ceil(merkle_cap.0.len());
         let leaf_index_bits = goldilocks_chip.num_to_bits(ctx, leaf_index, log_n);
 
         // leaf_index / 2^(depth - cap_height)
@@ -63,10 +64,15 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         let one = goldilocks_chip.load_constant(ctx, GoldilocksField::ONE); // TODO: Move somewhere else
         let mut node = poseidon_chip.hash_or_noop(ctx, leaf_data);
         for (&sibling, bit) in proof.0.iter().zip(leaf_index_bits.iter()) {
-            let one_minus_bit = goldilocks_chip.sub(ctx, &one, bit);
+            // TODO: Ugly
+            let one_minus_bit = goldilocks_chip.sub(ctx, &one, &(*bit).into());
             // TODO: Is there a more efficient to way to select both at once?
-            let left =
-                HashOutWire(goldilocks_chip.select_array(ctx, node.0, sibling.0, &one_minus_bit));
+            let left = HashOutWire(goldilocks_chip.select_array(
+                ctx,
+                node.0,
+                sibling.0,
+                &one_minus_bit.into(),
+            ));
             let right = HashOutWire(goldilocks_chip.select_array(ctx, node.0, sibling.0, bit));
             node = poseidon_chip.two_to_one(ctx, &left, &right);
         }
@@ -88,7 +94,7 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         }
     }
 
-    pub fn verify_merkle_proof(
+    pub fn verify_proof(
         &self,
         ctx: &mut Context<F>,
         leaf_data: &[GoldilocksWire<F>],
@@ -97,7 +103,7 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         proof: &MerkleProofWire<F>,
     ) {
         let merkle_cap = MerkleCapWire(vec![*merkle_root]);
-        self.verify_merkle_proof_to_cap(ctx, leaf_data, leaf_index, &merkle_cap, proof);
+        self.verify_proof_to_cap(ctx, leaf_data, leaf_index, &merkle_cap, proof);
     }
 }
 
@@ -168,7 +174,7 @@ mod tests {
                         .collect::<Vec<_>>(),
                 );
 
-                merkle_chip.verify_merkle_proof_to_cap(
+                merkle_chip.verify_proof_to_cap(
                     ctx,
                     &leaf_wire,
                     &leaf_idx_wire,
@@ -224,13 +230,7 @@ mod tests {
                         .collect::<Vec<_>>(),
                 );
 
-                merkle_chip.verify_merkle_proof(
-                    ctx,
-                    &leaf_wire,
-                    &leaf_idx_wire,
-                    &root_wire,
-                    &proof_wire,
-                );
+                merkle_chip.verify_proof(ctx, &leaf_wire, &leaf_idx_wire, &root_wire, &proof_wire);
             }
         })
     }

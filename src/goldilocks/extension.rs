@@ -10,7 +10,7 @@ use super::field::{GoldilocksChip, GoldilocksWire};
 
 // TODO: Use const generics for arbitrary GoldilocksExtWire
 #[derive(Copy, Clone, Debug)]
-pub struct GoldilocksQuadExtWire<F: ScalarField>([GoldilocksWire<F>; 2]);
+pub struct GoldilocksQuadExtWire<F: ScalarField>(pub [GoldilocksWire<F>; 2]);
 
 impl<F: ScalarField> GoldilocksQuadExtWire<F> {
     pub fn value(&self) -> QuadraticExtension<GoldilocksField> {

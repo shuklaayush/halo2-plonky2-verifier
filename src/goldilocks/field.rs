@@ -5,8 +5,12 @@ use halo2_base::{AssignedValue, Context};
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::{Field, Field64, PrimeField64};
 
+use super::BoolWire;
+
+// TODO: Use SafeUint64?
+//       https://github.com/axiom-crypto/halo2-lib/blob/400122a6cf074783d0e5ee904a711e75ddfff3d4/halo2-base/src/safe_types/mod.rs#L109-L109
 #[derive(Copy, Clone, Debug)]
-pub struct GoldilocksWire<F: ScalarField>(AssignedValue<F>);
+pub struct GoldilocksWire<F: ScalarField>(pub AssignedValue<F>);
 
 impl<F: ScalarField> GoldilocksWire<F> {
     pub fn value(&self) -> GoldilocksField {
@@ -39,6 +43,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
         self.range.gate()
     }
 
+    // TODO: Rename to range_chip?
     pub fn range(&self) -> &RangeChip<F> {
         &self.range
     }
@@ -87,7 +92,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
         ctx: &mut Context<F>,
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
-        sel: &GoldilocksWire<F>,
+        sel: &BoolWire<F>,
     ) -> GoldilocksWire<F> {
         let gate = self.gate();
 
@@ -99,7 +104,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
         ctx: &mut Context<F>,
         a: [GoldilocksWire<F>; N],
         b: [GoldilocksWire<F>; N],
-        sel: &GoldilocksWire<F>,
+        sel: &BoolWire<F>,
     ) -> [GoldilocksWire<F>; N] {
         let gate = self.gate();
 
@@ -157,21 +162,14 @@ impl<F: ScalarField> GoldilocksChip<F> {
         ctx: &mut Context<F>,
         a: &GoldilocksWire<F>,
         range_bits: usize,
-    ) -> Vec<GoldilocksWire<F>> {
+    ) -> Vec<BoolWire<F>> {
         let gate = self.gate();
 
         let native_bits = gate.num_to_bits(ctx, a.0, range_bits);
-        native_bits
-            .iter()
-            .map(|&x| GoldilocksWire(x))
-            .collect::<Vec<_>>()
+        native_bits.iter().map(|&x| BoolWire(x)).collect::<Vec<_>>()
     }
 
-    pub fn bits_to_num(
-        &self,
-        ctx: &mut Context<F>,
-        bits: &[GoldilocksWire<F>],
-    ) -> GoldilocksWire<F> {
+    pub fn bits_to_num(&self, ctx: &mut Context<F>, bits: &[BoolWire<F>]) -> GoldilocksWire<F> {
         let gate = self.gate();
 
         GoldilocksWire(
