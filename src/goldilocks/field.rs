@@ -1,6 +1,6 @@
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::gates::{GateInstructions, RangeInstructions};
-use halo2_base::utils::ScalarField;
+use halo2_base::utils::{biguint_to_fe, fe_to_biguint, ScalarField};
 use halo2_base::{AssignedValue, Context};
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::{Field, Field64, PrimeField64};
@@ -13,9 +13,14 @@ use super::BoolWire;
 pub struct GoldilocksWire<F: ScalarField>(pub AssignedValue<F>);
 
 impl<F: ScalarField> GoldilocksWire<F> {
+    pub fn value_raw(&self) -> &F {
+        self.0.value()
+    }
+
     pub fn value(&self) -> GoldilocksField {
-        let val = self.0.value();
-        GoldilocksField::from_canonical_u64(val.get_lower_64())
+        debug_assert!(self.value_raw() < &F::from(GoldilocksField::ORDER));
+
+        GoldilocksField::from_canonical_u64(self.0.value().get_lower_64())
     }
 }
 
@@ -183,8 +188,20 @@ impl<F: ScalarField> GoldilocksChip<F> {
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
+        // TODO: Cache
         let one = self.load_constant(ctx, GoldilocksField::ONE);
         self.mul_add(ctx, a, &one, b)
+    }
+
+    pub fn add_no_reduce(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        let gate = self.gate();
+
+        GoldilocksWire(gate.add(ctx, a.0, b.0))
     }
 
     pub fn sub(
@@ -197,6 +214,19 @@ impl<F: ScalarField> GoldilocksChip<F> {
         self.mul_add(ctx, b, &minus_one, a)
     }
 
+    pub fn sub_no_reduce(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        let gate = self.gate();
+
+        let minus_one = self.load_constant(ctx, GoldilocksField::ZERO - GoldilocksField::ONE);
+        let minus_b = gate.mul(ctx, b.0, minus_one.0);
+        GoldilocksWire(gate.add(ctx, a.0, b.0))
+    }
+
     // TODO: Add functions that don't reduce to chain operations and reduce at end
     pub fn mul(
         &self,
@@ -206,6 +236,17 @@ impl<F: ScalarField> GoldilocksChip<F> {
     ) -> GoldilocksWire<F> {
         let zero = self.load_constant(ctx, GoldilocksField::ZERO);
         self.mul_add(ctx, a, b, &zero)
+    }
+
+    pub fn mul_no_reduce(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        let gate = self.gate();
+
+        GoldilocksWire(gate.mul(ctx, a.0, b.0))
     }
 
     pub fn mul_add(
@@ -235,8 +276,46 @@ impl<F: ScalarField> GoldilocksChip<F> {
         gate.is_equal(ctx, lhs, rhs);
 
         let range = self.range();
-        range.is_less_than_safe(ctx, quotient.0, GoldilocksField::ORDER);
-        range.is_less_than_safe(ctx, remainder.0, GoldilocksField::ORDER);
+        range.check_less_than_safe(ctx, quotient.0, GoldilocksField::ORDER);
+        range.check_less_than_safe(ctx, remainder.0, GoldilocksField::ORDER);
+
+        // Return
+        remainder
+    }
+
+    pub fn mul_add_no_reduce(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+        c: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        let gate = self.gate();
+
+        GoldilocksWire(gate.mul_add(ctx, a.0, b.0, c.0))
+    }
+
+    pub fn reduce(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
+        // 1. Calculate hint
+        let val = fe_to_biguint(a.value_raw());
+        let quotient = val / GoldilocksField::ORDER;
+        let remainder = GoldilocksField::from_noncanonical_biguint(val);
+
+        // 2. Load witnesses from hint
+        let quotient = ctx.load_witness(biguint_to_fe(&quotient));
+        let remainder = self.load_witness(ctx, remainder);
+
+        // 3. Constrain witnesses
+        let gate = self.gate();
+        let p = ctx.load_constant(F::from(GoldilocksField::ORDER));
+        let rhs = gate.mul_add(ctx, quotient, p, remainder.0);
+
+        gate.is_equal(ctx, a.0, rhs);
+
+        let range = self.range();
+        // TODO: Dummy
+        range.range_check(ctx, quotient, 160);
+        range.check_less_than_safe(ctx, remainder.0, GoldilocksField::ORDER);
 
         // Return
         remainder
