@@ -4,9 +4,9 @@ use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::hash::hash_types::NUM_HASH_OUT_ELTS;
-use plonky2::util::log2_ceil;
 
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
+use crate::goldilocks::BoolWire;
 use crate::hash::poseidon::hash::PoseidonChip;
 use crate::hash::HashOutWire;
 
@@ -41,25 +41,17 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         &self.poseidon_chip
     }
 
-    // TODO: This is effectively checking doing merkle proof for a subtree
-    //       Maybe there's a bettter abstraction?
-    pub fn verify_proof_to_cap(
+    pub fn verify_proof_to_cap_with_cap_index(
         &self,
         ctx: &mut Context<F>,
         leaf_data: &[GoldilocksWire<F>],
-        leaf_index: &GoldilocksWire<F>,
+        leaf_index_bits: &[BoolWire<F>],
+        cap_index: &GoldilocksWire<F>,
         merkle_cap: &MerkleCapWire<F>,
         proof: &MerkleProofWire<F>,
     ) {
         let poseidon_chip = self.poseidon_chip();
-        let goldilocks_chip = poseidon_chip.goldilocks_chip();
-
-        // To select whether current element is left or right child
-        let log_n = proof.0.len() + log2_ceil(merkle_cap.0.len());
-        let leaf_index_bits = goldilocks_chip.num_to_bits(ctx, leaf_index, log_n);
-
-        // leaf_index / 2^(depth - cap_height)
-        let cap_index = goldilocks_chip.bits_to_num(ctx, &leaf_index_bits[proof.0.len()..]);
+        let goldilocks_chip = self.goldilocks_chip();
 
         let one = goldilocks_chip.load_constant(ctx, GoldilocksField::ONE); // TODO: Move somewhere else
         let mut node = poseidon_chip.hash_or_noop(ctx, leaf_data);
@@ -77,7 +69,6 @@ impl<F: ScalarField> MerkleTreeChip<F> {
             node = poseidon_chip.two_to_one(ctx, &left, &right);
         }
 
-        let goldilocks_chip = self.goldilocks_chip();
         // TODO: Abstract this away to hash chip
         let root = goldilocks_chip.select_array_from_idx(
             ctx,
@@ -94,16 +85,41 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         }
     }
 
+    // TODO: This is effectively checking doing merkle proof for a subtree
+    //       Maybe there's a bettter abstraction?
+    pub fn verify_proof_to_cap(
+        &self,
+        ctx: &mut Context<F>,
+        leaf_data: &[GoldilocksWire<F>],
+        leaf_index_bits: &[BoolWire<F>],
+        merkle_cap: &MerkleCapWire<F>,
+        proof: &MerkleProofWire<F>,
+    ) {
+        let goldilocks_chip = self.goldilocks_chip();
+
+        // leaf_index / 2^(depth - cap_height)
+        let cap_index = goldilocks_chip.bits_to_num(ctx, &leaf_index_bits[proof.0.len()..]);
+
+        self.verify_proof_to_cap_with_cap_index(
+            ctx,
+            leaf_data,
+            leaf_index_bits,
+            &cap_index,
+            merkle_cap,
+            proof,
+        );
+    }
+
     pub fn verify_proof(
         &self,
         ctx: &mut Context<F>,
         leaf_data: &[GoldilocksWire<F>],
-        leaf_index: &GoldilocksWire<F>,
+        leaf_index_bits: &[BoolWire<F>],
         merkle_root: &HashOutWire<F>,
         proof: &MerkleProofWire<F>,
     ) {
         let merkle_cap = MerkleCapWire(vec![*merkle_root]);
-        self.verify_proof_to_cap(ctx, leaf_data, leaf_index, &merkle_cap, proof);
+        self.verify_proof_to_cap(ctx, leaf_data, leaf_index_bits, &merkle_cap, proof);
     }
 }
 
@@ -117,6 +133,7 @@ mod tests {
     use plonky2::hash::merkle_proofs::{verify_merkle_proof, verify_merkle_proof_to_cap};
     use plonky2::hash::merkle_tree::MerkleTree;
     use plonky2::hash::poseidon::PoseidonHash;
+    use plonky2::util::log2_ceil;
     use rand::rngs::StdRng;
     use rand::Rng;
     use rand_core::SeedableRng;
@@ -125,13 +142,14 @@ mod tests {
     fn test_verify_proof_to_cap() {
         let mut rng = StdRng::seed_from_u64(0u64);
 
-        base_test().k(12).run(|ctx, range| {
+        base_test().k(14).run(|ctx, range| {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
             let merkle_chip = MerkleTreeChip::new(poseidon_chip);
 
             for _ in 0..2 {
-                let leaves = (0..8) // TODO: No hardcode
+                let n = 8;
+                let leaves = (0..n)
                     .map(|_| GoldilocksField::rand_vec(20))
                     .collect::<Vec<_>>();
 
@@ -142,6 +160,8 @@ mod tests {
                 let leaf_idx = rng.gen_range(0..leaves.len());
                 let leaf_idx_wire = goldilocks_chip
                     .load_constant(ctx, GoldilocksField::from_canonical_usize(leaf_idx));
+                let leaf_idx_bits_wire =
+                    goldilocks_chip.num_to_bits(ctx, &leaf_idx_wire, log2_ceil(n));
                 let merkle_proof = merkle_tree.prove(leaf_idx);
 
                 verify_merkle_proof_to_cap(
@@ -177,7 +197,7 @@ mod tests {
                 merkle_chip.verify_proof_to_cap(
                     ctx,
                     &leaf_wire,
-                    &leaf_idx_wire,
+                    &leaf_idx_bits_wire,
                     &cap_wire,
                     &proof_wire,
                 );
@@ -195,7 +215,8 @@ mod tests {
             let merkle_chip = MerkleTreeChip::new(poseidon_chip);
 
             for _ in 0..2 {
-                let leaves = (0..8) // TODO: No hardcode
+                let n = 8;
+                let leaves = (0..n)
                     .map(|_| GoldilocksField::rand_vec(20))
                     .collect::<Vec<_>>();
 
@@ -205,6 +226,8 @@ mod tests {
                 let leaf_idx = rng.gen_range(0..leaves.len());
                 let leaf_idx_wire = goldilocks_chip
                     .load_constant(ctx, GoldilocksField::from_canonical_usize(leaf_idx));
+                let leaf_idx_bits_wire =
+                    goldilocks_chip.num_to_bits(ctx, &leaf_idx_wire, log2_ceil(n));
                 let merkle_proof = merkle_tree.prove(leaf_idx);
 
                 verify_merkle_proof(
@@ -230,7 +253,13 @@ mod tests {
                         .collect::<Vec<_>>(),
                 );
 
-                merkle_chip.verify_proof(ctx, &leaf_wire, &leaf_idx_wire, &root_wire, &proof_wire);
+                merkle_chip.verify_proof(
+                    ctx,
+                    &leaf_wire,
+                    &leaf_idx_bits_wire,
+                    &root_wire,
+                    &proof_wire,
+                );
             }
         })
     }

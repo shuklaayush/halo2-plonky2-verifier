@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_hash_no_pad() {
-        base_test().k(12).run(|ctx, range| {
+        base_test().k(14).run(|ctx, range| {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_hash_two_to_one() {
-        base_test().k(12).run(|ctx, range| {
+        base_test().k(14).run(|ctx, range| {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 

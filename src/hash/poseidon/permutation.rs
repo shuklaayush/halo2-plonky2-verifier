@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_permute() {
-        base_test().k(12).run(|ctx, range| {
+        base_test().k(14).run(|ctx, range| {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip.clone()); // TODO: Remove clone, use reference
 
