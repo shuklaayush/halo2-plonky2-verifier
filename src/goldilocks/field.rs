@@ -214,6 +214,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
         self.mul_add(ctx, b, &minus_one, a)
     }
 
+    // TODO: What is this even supposed to do?
     pub fn sub_no_reduce(
         &self,
         ctx: &mut Context<F>,
@@ -224,7 +225,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
 
         let minus_one = self.load_constant(ctx, GoldilocksField::ZERO - GoldilocksField::ONE);
         let minus_b = gate.mul(ctx, b.0, minus_one.0);
-        GoldilocksWire(gate.add(ctx, a.0, b.0))
+        GoldilocksWire(gate.add(ctx, a.0, minus_b))
     }
 
     // TODO: Add functions that don't reduce to chain operations and reduce at end
@@ -295,10 +296,35 @@ impl<F: ScalarField> GoldilocksChip<F> {
         GoldilocksWire(gate.mul_add(ctx, a.0, b.0, c.0))
     }
 
+    pub fn exp_from_bits_const_base(
+        &self,
+        ctx: &mut Context<F>,
+        base: &GoldilocksField,
+        exponent_bits: &[BoolWire<F>],
+    ) -> GoldilocksWire<F> {
+        let gate = self.gate();
+
+        let mut product = self.load_constant(ctx, GoldilocksField::ONE);
+        for (i, bit) in exponent_bits.iter().enumerate() {
+            let pow = 1 << i;
+            // If the bit is on, we multiply product by base^pow.
+            // We can arithmetize this as:
+            //     product *= 1 + bit (base^pow - 1)
+            //     product = (base^pow - 1) product bit + product
+            let base_pow_minus_one =
+                self.load_constant(ctx, base.exp_u64(pow as u64) - GoldilocksField::ONE);
+            // TODO: Can we condense this into a single mul_add?
+            let a = self.mul(ctx, &base_pow_minus_one, &product);
+            product = self.mul_add(ctx, &a, bit, &product);
+        }
+
+        product
+    }
+
     pub fn reduce(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
         // 1. Calculate hint
         let val = fe_to_biguint(a.value_raw());
-        let quotient = val / GoldilocksField::ORDER;
+        let quotient = val.clone() / GoldilocksField::ORDER;
         let remainder = GoldilocksField::from_noncanonical_biguint(val);
 
         // 2. Load witnesses from hint
@@ -342,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_mul() {
-        base_test().k(12).run(|ctx, range| {
+        base_test().k(14).run(|ctx, range| {
             let gl_chip = GoldilocksChip::<Fr>::new(range.clone()); // TODO: Remove clone, store reference
 
             for _ in 0..100 {

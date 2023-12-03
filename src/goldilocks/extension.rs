@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_goldilocks_extension_chip() {
-        base_test().k(12).run(|ctx, range| {
+        base_test().k(14).run(|ctx, range| {
             let gl_chip = GoldilocksChip::<Fr>::new(range.clone());
             let gle_chip = GoldilocksQuadExtChip::new(gl_chip);
 
