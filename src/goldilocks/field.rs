@@ -250,6 +250,10 @@ impl<F: ScalarField> GoldilocksChip<F> {
         GoldilocksWire(gate.mul(ctx, a.0, b.0))
     }
 
+    pub fn square(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
+        self.mul(ctx, a, a)
+    }
+
     pub fn mul_add(
         &self,
         ctx: &mut Context<F>,
@@ -315,7 +319,8 @@ impl<F: ScalarField> GoldilocksChip<F> {
                 self.load_constant(ctx, base.exp_u64(pow as u64) - GoldilocksField::ONE);
             // TODO: Can we condense this into a single mul_add?
             let a = self.mul(ctx, &base_pow_minus_one, &product);
-            product = self.mul_add(ctx, &a, bit, &product);
+            // TODO: Ugly
+            product = self.mul_add(ctx, &a, &(*bit).into(), &product);
         }
 
         product

@@ -5,6 +5,8 @@ use plonky2::field::extension::quadratic::QuadraticExtension;
 use plonky2::field::extension::Extendable;
 use plonky2::field::extension::FieldExtension;
 use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2::field::types::Field;
+use plonky2::util::bits_u64;
 
 use super::field::{GoldilocksChip, GoldilocksWire};
 
@@ -152,6 +154,27 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         GoldilocksQuadExtWire([c0, c1])
     }
 
+    pub fn square(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let GoldilocksQuadExtWire([a0, a1]) = a;
+
+        let w = self
+            .goldilocks_chip
+            .load_constant(ctx, <GoldilocksField as Extendable<2>>::W); // TODO: Cache
+        let a0a0 = self.goldilocks_chip.square(ctx, a0);
+        let a1a1 = self.goldilocks_chip.square(ctx, a1);
+        let wa1a1 = self.goldilocks_chip.mul(ctx, &w, &a1a1);
+        let c0 = self.goldilocks_chip.add(ctx, &a0a0, &wa1a1);
+
+        let a0a1 = self.goldilocks_chip.mul(ctx, a0, a1);
+        let c1 = self.goldilocks_chip.add(ctx, &a0a1, &a0a1);
+
+        GoldilocksQuadExtWire([c0, c1])
+    }
+
     pub fn mul_no_reduce(
         &self,
         ctx: &mut Context<F>,
@@ -196,6 +219,33 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
     ) -> GoldilocksQuadExtWire<F> {
         let ab = self.mul_no_reduce(ctx, a, b);
         self.add_no_reduce(ctx, &ab, c)
+    }
+
+    pub fn exp_u64(
+        &self,
+        ctx: &mut Context<F>,
+        base: &GoldilocksQuadExtWire<F>,
+        exponent: u64,
+    ) -> GoldilocksQuadExtWire<F> {
+        match exponent {
+            0 => return self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE),
+            1 => return *base,
+            2 => return self.mul(ctx, base, base),
+            // TODO: Do i need a special case for 3?
+            _ => (),
+        }
+        let mut current = *base;
+        let mut product = self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE);
+
+        for j in 0..bits_u64(exponent) {
+            if j != 0 {
+                current = self.square(ctx, &current);
+            }
+            if (exponent >> j & 1) != 0 {
+                product = self.mul(ctx, &product, &current);
+            }
+        }
+        product
     }
 
     pub fn range_check(&self, ctx: &mut Context<F>, a: &GoldilocksQuadExtWire<F>) {
