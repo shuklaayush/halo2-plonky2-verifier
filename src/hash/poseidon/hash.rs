@@ -77,7 +77,9 @@ impl<F: ScalarField> PoseidonChip<F> {
 
         // Squeeze until we have the desired number of outputs.
         // TODO: Fix
-        HashOutWire(state.0[..NUM_HASH_OUT_ELTS].try_into().unwrap())
+        HashOutWire {
+            elements: state.0[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
+        }
     }
 
     // TODO: Dedup by reusing hash_no_pad
@@ -94,13 +96,16 @@ impl<F: ScalarField> PoseidonChip<F> {
             gl_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]),
         );
 
-        state.0[0..NUM_HASH_OUT_ELTS].copy_from_slice(left.0.as_slice());
-        state.0[NUM_HASH_OUT_ELTS..2 * NUM_HASH_OUT_ELTS].copy_from_slice(right.0.as_slice());
+        state.0[0..NUM_HASH_OUT_ELTS].copy_from_slice(left.elements.as_slice());
+        state.0[NUM_HASH_OUT_ELTS..2 * NUM_HASH_OUT_ELTS]
+            .copy_from_slice(right.elements.as_slice());
 
         state = permutation_chip.permute(ctx, &state);
 
         // TODO: Fix
-        HashOutWire(state.0[..NUM_HASH_OUT_ELTS].try_into().unwrap())
+        HashOutWire {
+            elements: state.0[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
+        }
     }
 }
 
@@ -129,7 +134,7 @@ mod tests {
             let hash_wire = poseidon_chip.hash_no_pad(ctx, &[preimage_wire]);
 
             for i in 0..NUM_HASH_OUT_ELTS {
-                assert_eq!(hash.elements[i], hash_wire.0[i].value());
+                assert_eq!(hash.elements[i], hash_wire.elements[i].value());
             }
             // }
         })
@@ -143,18 +148,20 @@ mod tests {
 
             for _ in 0..10 {
                 let hash1 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
-                let hash1_wire =
-                    HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash1.elements));
+                let hash1_wire = HashOutWire {
+                    elements: goldilocks_chip.load_constant_array(ctx, &hash1.elements),
+                };
 
                 let hash2 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
-                let hash2_wire =
-                    HashOutWire(goldilocks_chip.load_constant_array(ctx, &hash2.elements));
+                let hash2_wire = HashOutWire {
+                    elements: goldilocks_chip.load_constant_array(ctx, &hash2.elements),
+                };
 
                 let hash_res = PoseidonHash::two_to_one(hash1, hash2);
                 let hash_res_wire = poseidon_chip.two_to_one(ctx, &hash1_wire, &hash2_wire);
 
                 for i in 0..NUM_HASH_OUT_ELTS {
-                    assert_eq!(hash_res.elements[i], hash_res_wire.0[i].value());
+                    assert_eq!(hash_res.elements[i], hash_res_wire.elements[i].value());
                 }
             }
         })
