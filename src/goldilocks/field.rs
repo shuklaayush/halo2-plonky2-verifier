@@ -228,7 +228,6 @@ impl<F: ScalarField> GoldilocksChip<F> {
         GoldilocksWire(gate.add(ctx, a.0, minus_b))
     }
 
-    // TODO: Add functions that don't reduce to chain operations and reduce at end
     pub fn mul(
         &self,
         ctx: &mut Context<F>,
@@ -248,6 +247,28 @@ impl<F: ScalarField> GoldilocksChip<F> {
         let gate = self.gate();
 
         GoldilocksWire(gate.mul(ctx, a.0, b.0))
+    }
+
+    pub fn div(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        // TODO: Is this required?
+        assert!(b.value() != GoldilocksField::ZERO);
+
+        // 1. Calculate hint
+        let res = a.value() / b.value();
+
+        // 2. Load witnesses from hint
+        let res = self.load_witness(ctx, res);
+
+        // 3. Constrain witnesses
+        let product = self.mul(ctx, b, &res);
+        self.assert_equal(ctx, a, &product);
+
+        res
     }
 
     pub fn square(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
@@ -300,6 +321,22 @@ impl<F: ScalarField> GoldilocksChip<F> {
         GoldilocksWire(gate.mul_add(ctx, a.0, b.0, c.0))
     }
 
+    pub fn inv(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
+        // 1. Calculate hint
+        let inverse = a.value().inverse();
+
+        // 2. Load witnesses from hint
+        let inverse = self.load_witness(ctx, inverse);
+
+        // 3. Constrain witnesses
+        let product = self.mul(ctx, a, &inverse);
+        let one = self.load_constant(ctx, GoldilocksField::ONE);
+        self.assert_equal(ctx, &product, &one);
+
+        // Return
+        return inverse;
+    }
+
     pub fn exp_from_bits_const_base(
         &self,
         ctx: &mut Context<F>,
@@ -323,6 +360,19 @@ impl<F: ScalarField> GoldilocksChip<F> {
             product = self.mul_add(ctx, &a, &(*bit).into(), &product);
         }
 
+        product
+    }
+
+    pub fn exp_power_of_2(
+        &self,
+        ctx: &mut Context<F>,
+        base: &GoldilocksWire<F>,
+        power_log: usize,
+    ) -> GoldilocksWire<F> {
+        let mut product = *base;
+        for _ in 0..power_log {
+            product = self.square(ctx, &product);
+        }
         product
     }
 
