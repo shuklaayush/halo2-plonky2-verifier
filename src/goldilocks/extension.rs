@@ -84,6 +84,34 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         ])
     }
 
+    pub fn select_from_idx<const N: usize>(
+        &self,
+        ctx: &mut Context<F>,
+        arr: &[GoldilocksQuadExtWire<F>; N],
+        // TODO: Should index be a separate type?
+        idx: &GoldilocksWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let goldilocks_chip = self.goldilocks_chip;
+
+        let arr0 = arr.iter().map(|x| x.0[0]).collect::<Vec<_>>();
+        let arr1 = arr.iter().map(|x| x.0[1]).collect::<Vec<_>>();
+
+        let arr0i = goldilocks_chip.select_from_idx(ctx, arr0.as_slice(), idx);
+        let arrli = goldilocks_chip.select_from_idx(ctx, arr1.as_slice(), idx);
+
+        GoldilocksQuadExtWire([arr0i, arrli])
+    }
+
+    pub fn from_base(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let goldilocks_chip = self.goldilocks_chip;
+        let zero = goldilocks_chip.load_constant(ctx, GoldilocksField::ZERO);
+        GoldilocksQuadExtWire([*a, zero])
+    }
+
     pub fn add(
         &self,
         ctx: &mut Context<F>,
@@ -221,6 +249,51 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         self.add_no_reduce(ctx, &ab, c)
     }
 
+    // TODO: Is this correct?
+    pub fn inv(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        // 1. Calculate hint
+        let inverse = a.value().inverse();
+
+        // 2. Load witnesses from hint
+        let inverse = self.load_witness(ctx, inverse);
+
+        // 3. Constrain witnesses
+        let product = self.mul(ctx, a, &inverse);
+        let one = self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE);
+        self.assert_equal(ctx, &product, &one);
+
+        // Return
+        return inverse;
+    }
+
+    pub fn scalar_mul(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        GoldilocksQuadExtWire([
+            self.goldilocks_chip.mul(ctx, &a.0[0], b),
+            self.goldilocks_chip.mul(ctx, &a.0[1], b),
+        ])
+    }
+
+    pub fn scalar_div(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        GoldilocksQuadExtWire([
+            self.goldilocks_chip.div(ctx, &a.0[0], b),
+            self.goldilocks_chip.div(ctx, &a.0[1], b),
+        ])
+    }
+
     pub fn exp_u64(
         &self,
         ctx: &mut Context<F>,
@@ -281,6 +354,7 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         ])
     }
 
+    // TODO: There should be a way to do this without reducing every step
     pub fn reduce_with_powers(
         &self,
         ctx: &mut Context<F>,
