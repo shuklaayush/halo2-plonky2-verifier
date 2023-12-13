@@ -84,20 +84,22 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         ])
     }
 
-    pub fn select_from_idx<const N: usize>(
+    pub fn select_from_idx(
         &self,
         ctx: &mut Context<F>,
-        arr: &[GoldilocksQuadExtWire<F>; N],
+        arr: &[GoldilocksQuadExtWire<F>],
         // TODO: Should index be a separate type?
         idx: &GoldilocksWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
-        let goldilocks_chip = self.goldilocks_chip;
-
         let arr0 = arr.iter().map(|x| x.0[0]).collect::<Vec<_>>();
         let arr1 = arr.iter().map(|x| x.0[1]).collect::<Vec<_>>();
 
-        let arr0i = goldilocks_chip.select_from_idx(ctx, arr0.as_slice(), idx);
-        let arrli = goldilocks_chip.select_from_idx(ctx, arr1.as_slice(), idx);
+        let arr0i = self
+            .goldilocks_chip
+            .select_from_idx(ctx, arr0.as_slice(), idx);
+        let arrli = self
+            .goldilocks_chip
+            .select_from_idx(ctx, arr1.as_slice(), idx);
 
         GoldilocksQuadExtWire([arr0i, arrli])
     }
@@ -107,8 +109,9 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         ctx: &mut Context<F>,
         a: &GoldilocksWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
-        let goldilocks_chip = self.goldilocks_chip;
-        let zero = goldilocks_chip.load_constant(ctx, GoldilocksField::ZERO);
+        let zero = self
+            .goldilocks_chip
+            .load_constant(ctx, GoldilocksField::ZERO);
         GoldilocksQuadExtWire([*a, zero])
     }
 

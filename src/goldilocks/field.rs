@@ -343,8 +343,6 @@ impl<F: ScalarField> GoldilocksChip<F> {
         base: &GoldilocksField,
         exponent_bits: &[BoolWire<F>],
     ) -> GoldilocksWire<F> {
-        let gate = self.gate();
-
         let mut product = self.load_constant(ctx, GoldilocksField::ONE);
         for (i, bit) in exponent_bits.iter().enumerate() {
             let pow = 1 << i;
