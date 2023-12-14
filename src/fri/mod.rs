@@ -27,10 +27,12 @@ pub struct FriBatchInfoWire<F: ScalarField> {
     pub polynomials: Vec<FriPolynomialInfo>,
 }
 
+#[derive(Debug)]
 pub struct FriOpeningsWire<F: ScalarField> {
     pub batches: Vec<FriOpeningBatchWire<F>>,
 }
 
+#[derive(Debug)]
 pub struct FriOpeningBatchWire<F: ScalarField> {
     pub values: Vec<GoldilocksQuadExtWire<F>>,
 }
@@ -78,15 +80,18 @@ pub struct FriProofWire<F: ScalarField> {
     pub pow_witness: GoldilocksWire<F>,
 }
 
+#[derive(Debug)]
 pub struct FriInitialTreeProofWire<F: ScalarField> {
     pub evals_proofs: Vec<(Vec<GoldilocksWire<F>>, MerkleProofWire<F>)>,
 }
 
+#[derive(Debug)]
 pub struct FriQueryStepWire<F: ScalarField> {
     pub evals: Vec<GoldilocksQuadExtWire<F>>,
     pub merkle_proof: MerkleProofWire<F>,
 }
 
+#[derive(Debug)]
 pub struct FriQueryRoundWire<F: ScalarField> {
     pub initial_trees_proof: FriInitialTreeProofWire<F>,
     pub steps: Vec<FriQueryStepWire<F>>,
@@ -361,8 +366,10 @@ impl<F: ScalarField> FriChip<F> {
         // verify that this has a negligible impact on soundness error.
         // TODO: Add this check back in.
         // Self::assert_noncanonical_indices_ok(&params.config);
-        // TODO: Do I need to check if x_index < n?
-        let mut x_index_bits = goldilocks_chip.num_to_bits(ctx, &x_index, n_log);
+
+        // TODO: Do I need to do full bit decomposition since truncating?
+        let mut x_index_bits = goldilocks_chip.num_to_bits(ctx, &x_index, GoldilocksField::BITS);
+        x_index_bits.truncate(n_log);
 
         let cap_index = goldilocks_chip.bits_to_num(
             ctx,
