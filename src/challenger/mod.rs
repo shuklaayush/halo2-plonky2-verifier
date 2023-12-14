@@ -1,15 +1,20 @@
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
+use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::fri::FriConfig;
 use plonky2::hash::poseidon::SPONGE_RATE;
+use starky::config::StarkConfig;
+use starky::permutation::{PermutationChallenge, PermutationChallengeSet};
+use starky::stark::Stark;
 
-use crate::fri::{FriChallengesWire, FriOpeningsWire, PolynomialCoeffsExtWire};
+use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoeffsExtWire};
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::hash::poseidon::permutation::{PoseidonPermutationChip, PoseidonStateWire};
 use crate::hash::HashOutWire;
 use crate::merkle::MerkleCapWire;
+use crate::stark::{StarkProofChallengesWire, StarkProofWire};
 
 pub struct ChallengerChip<F: ScalarField> {
     permutation_chip: PoseidonPermutationChip<F>,
@@ -44,15 +49,15 @@ impl<F: ScalarField> ChallengerChip<F> {
         &self.permutation_chip
     }
 
-    pub fn observe_element(&mut self, target: GoldilocksWire<F>) {
+    pub fn observe_element(&mut self, target: &GoldilocksWire<F>) {
         // Any buffered outputs are now invalid, since they wouldn't reflect this input.
         self.output_buffer.clear();
 
-        self.input_buffer.push(target);
+        self.input_buffer.push(*target);
     }
 
     pub fn observe_elements(&mut self, targets: &[GoldilocksWire<F>]) {
-        for &target in targets {
+        for target in targets {
             self.observe_element(target);
         }
     }
@@ -122,7 +127,7 @@ impl<F: ScalarField> ChallengerChip<F> {
         ctx: &mut Context<F>,
         commit_phase_merkle_caps: &[MerkleCapWire<F>],
         final_poly: &PolynomialCoeffsExtWire<F>,
-        pow_witness: GoldilocksWire<F>,
+        pow_witness: &GoldilocksWire<F>,
         inner_fri_config: &FriConfig,
     ) -> FriChallengesWire<F> {
         let num_fri_queries = inner_fri_config.num_query_rounds;
@@ -153,6 +158,93 @@ impl<F: ScalarField> ChallengerChip<F> {
             fri_pow_response,
             fri_query_indices,
         }
+    }
+
+    pub fn get_stark_challenges<S: Stark<GoldilocksField, 2>>(
+        &mut self,
+        ctx: &mut Context<F>,
+        proof: &StarkProofWire<F>,
+        stark: &S,
+        config: &StarkConfig,
+    ) -> StarkProofChallengesWire<F> {
+        let StarkProofWire {
+            trace_cap,
+            permutation_zs_cap,
+            quotient_polys_cap,
+            openings,
+            opening_proof:
+                FriProofWire {
+                    commit_phase_merkle_caps,
+                    final_poly,
+                    pow_witness,
+                    ..
+                },
+        } = proof;
+
+        let num_challenges = config.num_challenges;
+
+        self.observe_cap(trace_cap);
+
+        let permutation_challenge_sets = permutation_zs_cap.as_ref().map(|permutation_zs_cap| {
+            let tmp = self.get_n_permutation_challenge_sets(
+                ctx,
+                num_challenges,
+                stark.permutation_batch_size(),
+            );
+            self.observe_cap(&permutation_zs_cap);
+            tmp
+        });
+
+        let stark_alphas = self.get_n_challenges(ctx, num_challenges);
+
+        self.observe_cap(quotient_polys_cap);
+        let stark_zeta = self.get_extension_challenge(ctx);
+
+        self.observe_openings(&openings.to_fri_openings());
+
+        StarkProofChallengesWire {
+            permutation_challenge_sets,
+            stark_alphas,
+            stark_zeta,
+            fri_challenges: self.get_fri_challenges(
+                ctx,
+                commit_phase_merkle_caps,
+                final_poly,
+                pow_witness,
+                &config.fri_config,
+            ),
+        }
+    }
+
+    fn get_permutation_challenge(
+        &mut self,
+        ctx: &mut Context<F>,
+    ) -> PermutationChallenge<GoldilocksWire<F>> {
+        let beta = self.get_challenge(ctx);
+        let gamma = self.get_challenge(ctx);
+        PermutationChallenge { beta, gamma }
+    }
+
+    fn get_permutation_challenge_set(
+        &mut self,
+        ctx: &mut Context<F>,
+        num_challenges: usize,
+    ) -> PermutationChallengeSet<GoldilocksWire<F>> {
+        let challenges = (0..num_challenges)
+            .map(|_| self.get_permutation_challenge(ctx))
+            .collect();
+        PermutationChallengeSet { challenges }
+    }
+
+    fn get_n_permutation_challenge_sets(
+        &mut self,
+        ctx: &mut Context<F>,
+        num_challenges: usize,
+        num_sets: usize,
+    ) -> Vec<PermutationChallengeSet<GoldilocksWire<F>>> {
+        (0..num_sets)
+            .map(|_| self.get_permutation_challenge_set(ctx, num_challenges))
+            .collect()
     }
 
     /// Absorb any buffered inputs. After calling this, the input buffer will be empty, and the
