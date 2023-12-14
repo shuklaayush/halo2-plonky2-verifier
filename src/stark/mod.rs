@@ -323,7 +323,7 @@ mod tests {
         type S = FibonacciStark<F, D>;
 
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 5;
+        let num_rows = 1 << 3;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
@@ -337,7 +337,7 @@ mod tests {
 
         verify_stark_proof(stark, proof_with_pis.clone(), &config)?;
 
-        base_test().k(14).run(|ctx, range| {
+        base_test().k(24).run(|ctx, range| {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 

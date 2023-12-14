@@ -13,6 +13,7 @@ use crate::hash::HashOutWire;
 #[derive(Clone, Debug)]
 pub struct MerkleCapWire<F: ScalarField>(pub Vec<HashOutWire<F>>);
 
+#[derive(Debug)]
 pub struct MerkleProofWire<F: ScalarField> {
     pub siblings: Vec<HashOutWire<F>>,
 }
