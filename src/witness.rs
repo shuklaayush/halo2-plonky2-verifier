@@ -123,7 +123,7 @@ impl<F: ScalarField> WitnessChip<F> {
     ) -> StarkOpeningSetWire<F> {
         StarkOpeningSetWire {
             local_values: self.load_extensions(ctx, openings_set.local_values.as_slice()),
-            next_values: self.load_extensions(ctx, openings_set.local_values.as_slice()),
+            next_values: self.load_extensions(ctx, openings_set.next_values.as_slice()),
             permutation_zs: if let Some(permutation_zs) = &openings_set.permutation_zs {
                 Some(self.load_extensions(ctx, permutation_zs.as_slice()))
             } else {
