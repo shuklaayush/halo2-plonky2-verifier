@@ -78,7 +78,7 @@ impl<F: ScalarField> PoseidonChip<F> {
         // Squeeze until we have the desired number of outputs.
         // TODO: Fix
         HashOutWire {
-            elements: state.0[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
+            elements: state.squeeze()[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
         }
     }
 
@@ -104,7 +104,7 @@ impl<F: ScalarField> PoseidonChip<F> {
 
         // TODO: Fix
         HashOutWire {
-            elements: state.0[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
+            elements: state.squeeze()[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
         }
     }
 }

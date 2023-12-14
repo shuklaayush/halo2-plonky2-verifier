@@ -4,13 +4,21 @@ use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::hash::poseidon::{
-    Poseidon, ALL_ROUND_CONSTANTS, HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_ROUNDS, SPONGE_WIDTH,
+    Poseidon, ALL_ROUND_CONSTANTS, HALF_N_FULL_ROUNDS, N_PARTIAL_ROUNDS, N_ROUNDS, SPONGE_RATE,
+    SPONGE_WIDTH,
 };
 
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 
 #[derive(Copy, Clone, Debug)]
 pub struct PoseidonStateWire<F: ScalarField>(pub [GoldilocksWire<F>; SPONGE_WIDTH]);
+
+impl<F: ScalarField> PoseidonStateWire<F> {
+    // TODO: Should this be a method on the chip?
+    pub fn squeeze(&self) -> &[GoldilocksWire<F>] {
+        &self.0[..SPONGE_RATE]
+    }
+}
 
 impl<F: ScalarField> From<[GoldilocksWire<F>; SPONGE_WIDTH]> for PoseidonStateWire<F> {
     fn from(state: [GoldilocksWire<F>; SPONGE_WIDTH]) -> Self {
