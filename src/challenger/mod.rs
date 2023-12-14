@@ -1,8 +1,10 @@
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
+use plonky2::fri::FriConfig;
 use plonky2::hash::poseidon::SPONGE_RATE;
 
+use crate::fri::{FriChallengesWire, FriOpeningsWire, PolynomialCoeffsExtWire};
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::hash::poseidon::permutation::{PoseidonPermutationChip, PoseidonStateWire};
@@ -75,6 +77,12 @@ impl<F: ScalarField> ChallengerChip<F> {
         }
     }
 
+    pub fn observe_openings(&mut self, openings: &FriOpeningsWire<F>) {
+        for v in &openings.batches {
+            self.observe_extension_elements(&v.values);
+        }
+    }
+
     pub fn get_challenge(&mut self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
         self.absorb_buffered_inputs(ctx);
 
@@ -107,6 +115,44 @@ impl<F: ScalarField> ChallengerChip<F> {
     pub fn get_extension_challenge(&mut self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
         // TODO: Remove hardcode
         GoldilocksQuadExtWire(self.get_n_challenges(ctx, 2).try_into().unwrap())
+    }
+
+    pub fn get_fri_challenges(
+        &mut self,
+        ctx: &mut Context<F>,
+        commit_phase_merkle_caps: &[MerkleCapWire<F>],
+        final_poly: &PolynomialCoeffsExtWire<F>,
+        pow_witness: GoldilocksWire<F>,
+        inner_fri_config: &FriConfig,
+    ) -> FriChallengesWire<F> {
+        let num_fri_queries = inner_fri_config.num_query_rounds;
+        // Scaling factor to combine polynomials.
+        let fri_alpha = self.get_extension_challenge(ctx);
+
+        // Recover the random betas used in the FRI reductions.
+        let fri_betas = commit_phase_merkle_caps
+            .iter()
+            .map(|cap| {
+                self.observe_cap(cap);
+                self.get_extension_challenge(ctx)
+            })
+            .collect();
+
+        self.observe_extension_elements(&final_poly.0);
+
+        self.observe_element(pow_witness);
+        let fri_pow_response = self.get_challenge(ctx);
+
+        let fri_query_indices = (0..num_fri_queries)
+            .map(|_| self.get_challenge(ctx))
+            .collect();
+
+        FriChallengesWire {
+            fri_alpha,
+            fri_betas,
+            fri_pow_response,
+            fri_query_indices,
+        }
     }
 
     /// Absorb any buffered inputs. After calling this, the input buffer will be empty, and the
