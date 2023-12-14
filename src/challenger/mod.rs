@@ -24,6 +24,7 @@ pub struct ChallengerChip<F: ScalarField> {
 }
 
 impl<F: ScalarField> ChallengerChip<F> {
+    // TODO: Initialize state as zero.
     pub fn new(permutation_chip: PoseidonPermutationChip<F>, state: PoseidonStateWire<F>) -> Self {
         Self {
             permutation_chip,
@@ -258,7 +259,7 @@ impl<F: ScalarField> ChallengerChip<F> {
             // Overwrite the first r elements with the inputs. This differs from a standard sponge,
             // where we would xor or add in the inputs. This is a well-known variant, though,
             // sometimes called "overwrite mode".
-            self.sponge_state.0.copy_from_slice(input_chunk);
+            self.sponge_state.0[..input_chunk.len()].copy_from_slice(input_chunk);
             self.sponge_state = self.permutation_chip.permute(ctx, &self.sponge_state);
         }
 

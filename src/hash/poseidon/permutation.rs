@@ -26,6 +26,7 @@ impl<F: ScalarField> From<[GoldilocksWire<F>; SPONGE_WIDTH]> for PoseidonStateWi
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct PoseidonPermutationChip<F: ScalarField> {
     goldilocks_chip: GoldilocksChip<F>,
 }

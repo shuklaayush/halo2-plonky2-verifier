@@ -32,6 +32,12 @@ pub struct WitnessChip<F: ScalarField> {
 }
 
 impl<F: ScalarField> WitnessChip<F> {
+    pub fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+
     fn load(&self, ctx: &mut Context<F>, value: GoldilocksField) -> GoldilocksWire<F> {
         GoldilocksWire(ctx.load_constant(F::from(value.to_canonical_u64())))
     }

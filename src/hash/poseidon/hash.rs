@@ -10,6 +10,7 @@ use super::permutation::{PoseidonPermutationChip, PoseidonStateWire};
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::hash::HashOutWire;
 
+#[derive(Debug, Clone)]
 pub struct PoseidonChip<F: ScalarField> {
     pub permutation_chip: PoseidonPermutationChip<F>,
 }
