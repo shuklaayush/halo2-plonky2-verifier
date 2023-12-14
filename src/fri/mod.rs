@@ -359,7 +359,7 @@ impl<F: ScalarField> FriChip<F> {
 
         // Note that this `low_bits` decomposition permits non-canonical binary encodings. Here we
         // verify that this has a negligible impact on soundness error.
-        // TODO
+        // TODO: Add this check back in.
         // Self::assert_noncanonical_indices_ok(&params.config);
         // TODO: Do I need to check if x_index < n?
         let mut x_index_bits = goldilocks_chip.num_to_bits(ctx, &x_index, n_log);
@@ -449,7 +449,7 @@ impl<F: ScalarField> FriChip<F> {
         extension_chip.assert_equal(ctx, &eval, &old_eval);
     }
 
-    fn verify_fri_proof(
+    pub fn verify_fri_proof(
         &self,
         ctx: &mut Context<F>,
         instance: &FriInstanceInfoWire<F>,
@@ -461,11 +461,6 @@ impl<F: ScalarField> FriChip<F> {
     ) {
         // TODO
         // validateFriProofShape(friProof, instance, f.friParams)
-
-        // TODO
-        // if let Some(max_arity_bits) = params.max_arity_bits() {
-        //     self.check_recursion_config(max_arity_bits);
-        // }
 
         debug_assert_eq!(
             params.final_poly_len(),
