@@ -10,6 +10,7 @@ use crate::goldilocks::BoolWire;
 use crate::hash::poseidon::hash::PoseidonChip;
 use crate::hash::HashOutWire;
 
+#[derive(Clone, Debug)]
 pub struct MerkleCapWire<F: ScalarField>(pub Vec<HashOutWire<F>>);
 
 pub struct MerkleProofWire<F: ScalarField> {

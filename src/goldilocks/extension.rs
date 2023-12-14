@@ -279,7 +279,7 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         self.assert_equal(ctx, &product, &one);
 
         // Return
-        return inverse;
+        inverse
     }
 
     pub fn scalar_mul(

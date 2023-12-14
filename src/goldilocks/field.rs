@@ -334,7 +334,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
         self.assert_equal(ctx, &product, &one);
 
         // Return
-        return inverse;
+        inverse
     }
 
     pub fn exp_from_bits_const_base(
