@@ -22,6 +22,15 @@ impl<F: ScalarField> GoldilocksQuadExtWire<F> {
     }
 }
 
+// impl<F: ScalarField> TryFrom<&[GoldilocksWire<F>]> for GoldilocksQuadExtWire<F> {
+//     type Error = anyhow::Error;
+
+//     fn try_from(elements: &[GoldilocksWire<F>]) -> Result<Self, Self::Error> {
+//         ensure!(elements.len() == 2);
+//         Ok(Self(elements.try_into().unwrap()))
+//     }
+// }
+
 // TODO: Reference and lifetimes? Should GoldilocksExtensionChip own GoldilocksChip?
 #[derive(Debug, Clone)]
 pub struct GoldilocksQuadExtChip<F: ScalarField> {
