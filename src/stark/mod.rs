@@ -10,7 +10,7 @@ use plonky2::{
 };
 use starky::{
     config::StarkConfig,
-    evaluation_frame::{StarkEvaluationFrame, StarkFrame},
+    // evaluation_frame::{StarkEvaluationFrame, StarkFrame},
     permutation::PermutationChallengeSet,
     stark::Stark,
 };
@@ -25,6 +25,7 @@ use crate::{
         extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire},
         field::GoldilocksWire,
     },
+    hash::{HashWire, HasherChip},
     merkle::MerkleCapWire,
 };
 
@@ -67,15 +68,15 @@ impl<F: ScalarField> StarkOpeningSetWire<F> {
     }
 }
 
-pub struct StarkProofWire<F: ScalarField> {
-    pub trace_cap: MerkleCapWire<F>,
-    pub permutation_zs_cap: Option<MerkleCapWire<F>>,
-    pub quotient_polys_cap: MerkleCapWire<F>,
+pub struct StarkProofWire<F: ScalarField, HW: HashWire<F>> {
+    pub trace_cap: MerkleCapWire<F, HW>,
+    pub permutation_zs_cap: Option<MerkleCapWire<F, HW>>,
+    pub quotient_polys_cap: MerkleCapWire<F, HW>,
     pub openings: StarkOpeningSetWire<F>,
-    pub opening_proof: FriProofWire<F>,
+    pub opening_proof: FriProofWire<F, HW>,
 }
 
-impl<F: ScalarField> StarkProofWire<F> {
+impl<F: ScalarField, HW: HashWire<F>> StarkProofWire<F, HW> {
     /// Recover the length of the trace from a STARK proof and a STARK config.
     pub fn recover_degree_bits(&self, config: &StarkConfig) -> usize {
         let initial_merkle_proof = &self.opening_proof.query_round_proofs[0]
@@ -87,8 +88,8 @@ impl<F: ScalarField> StarkProofWire<F> {
     }
 }
 
-pub struct StarkProofWithPublicInputsWire<F: ScalarField> {
-    pub proof: StarkProofWire<F>,
+pub struct StarkProofWithPublicInputsWire<F: ScalarField, HW: HashWire<F>> {
+    pub proof: StarkProofWire<F, HW>,
     pub public_inputs: Vec<GoldilocksWire<F>>,
 }
 
@@ -99,15 +100,15 @@ pub struct StarkProofChallengesWire<F: ScalarField> {
     pub fri_challenges: FriChallengesWire<F>,
 }
 
-pub struct StarkChip<F: ScalarField> {
-    challenger_chip: ChallengerChip<F>,
-    fri_chip: FriChip<F>,
+pub struct StarkChip<F: ScalarField, HC: HasherChip<F>> {
+    challenger_chip: ChallengerChip<F, HC>,
+    fri_chip: FriChip<F, HC>,
 }
 
 // TODO: Remove all chips and replace with a single CircuitBuilderChip?
 //       To make it consistent with the plonky2 code.
-impl<F: ScalarField> StarkChip<F> {
-    pub fn new(challenger_chip: ChallengerChip<F>, fri_chip: FriChip<F>) -> Self {
+impl<F: ScalarField, HC: HasherChip<F>> StarkChip<F, HC> {
+    pub fn new(challenger_chip: ChallengerChip<F, HC>, fri_chip: FriChip<F, HC>) -> Self {
         Self {
             challenger_chip,
             fri_chip,
@@ -123,7 +124,7 @@ impl<F: ScalarField> StarkChip<F> {
     fn check_permutation_options<S: Stark<GoldilocksField, 2>>(
         &self,
         stark: &S,
-        proof_with_pis: &StarkProofWithPublicInputsWire<F>,
+        proof_with_pis: &StarkProofWithPublicInputsWire<F, HC::HashWire>,
         challenges: &StarkProofChallengesWire<F>,
     ) -> Result<()> {
         let options_is_some = [
@@ -227,40 +228,11 @@ impl<F: ScalarField> StarkChip<F> {
         )
     }
 
-    pub fn verify_proof<S: Stark<GoldilocksField, 2>>(
-        &mut self, // TODO: Make this immutable
-        ctx: &mut Context<F>,
-        stark: S,
-        proof_with_pis: StarkProofWithPublicInputsWire<F>,
-        inner_config: &StarkConfig,
-    ) where
-        [(); S::COLUMNS]:,
-        [(); S::PUBLIC_INPUTS]:,
-    {
-        assert_eq!(proof_with_pis.public_inputs.len(), S::PUBLIC_INPUTS);
-        let degree_bits = proof_with_pis.proof.recover_degree_bits(inner_config);
-        let challenges = self.challenger_chip.get_stark_challenges::<S>(
-            ctx,
-            &proof_with_pis.proof,
-            &stark,
-            inner_config,
-        );
-
-        self.verify_proof_with_challenges::<S>(
-            ctx,
-            stark,
-            proof_with_pis,
-            challenges,
-            inner_config,
-            degree_bits,
-        );
-    }
-
     pub fn verify_proof_with_challenges<S: Stark<GoldilocksField, 2>>(
         &self,
         ctx: &mut Context<F>,
         stark: S,
-        proof_with_pis: StarkProofWithPublicInputsWire<F>,
+        proof_with_pis: StarkProofWithPublicInputsWire<F, HC::HashWire>,
         challenges: StarkProofChallengesWire<F>,
         inner_config: &StarkConfig,
         degree_bits: usize,
@@ -268,57 +240,57 @@ impl<F: ScalarField> StarkChip<F> {
         [(); S::COLUMNS]:,
         [(); S::PUBLIC_INPUTS]:,
     {
-        let extension_chip = self.extension_chip();
+        // let extension_chip = self.extension_chip();
 
         self.check_permutation_options(&stark, &proof_with_pis, &challenges)
             .unwrap();
-        let one = extension_chip.load_one(ctx);
+        // let one = extension_chip.load_one(ctx);
 
         let StarkProofWithPublicInputsWire {
             proof,
             public_inputs,
         } = proof_with_pis;
-        let StarkOpeningSetWire {
-            local_values,
-            next_values,
-            permutation_zs,
-            permutation_zs_next,
-            quotient_polys,
-        } = &proof.openings;
+        // let StarkOpeningSetWire {
+        //     local_values,
+        //     next_values,
+        //     permutation_zs,
+        //     permutation_zs_next,
+        //     quotient_polys,
+        // } = &proof.openings;
 
         // TODO: Can I avoid the generic const expr here?
         //       Rust doesn't support associated consts in generic types yet.
-        let vars = StarkFrame::<
-            GoldilocksQuadExtWire<F>,
-            GoldilocksQuadExtWire<F>,
-            { S::COLUMNS },
-            { S::PUBLIC_INPUTS },
-        >::from_values(
-            local_values,
-            next_values,
-            &public_inputs
-                .iter()
-                .map(|t| extension_chip.load_base(ctx, t))
-                .collect::<Vec<_>>(),
-        );
+        // let vars = StarkFrame::<
+        //     GoldilocksQuadExtWire<F>,
+        //     GoldilocksQuadExtWire<F>,
+        //     { S::COLUMNS },
+        //     { S::PUBLIC_INPUTS },
+        // >::from_values(
+        //     local_values,
+        //     next_values,
+        //     &public_inputs
+        //         .iter()
+        //         .map(|t| extension_chip.load_base(ctx, t))
+        //         .collect::<Vec<_>>(),
+        // );
 
-        let zeta_pow_deg = extension_chip.exp_power_of_2(ctx, &challenges.stark_zeta, degree_bits);
-        let z_h_zeta = extension_chip.sub(ctx, &zeta_pow_deg, &one);
-        let (l_0, l_last) =
-            self.eval_l_0_and_l_last_circuit(ctx, degree_bits, challenges.stark_zeta, z_h_zeta);
-        let last = extension_chip.load_constant(
-            ctx,
-            QuadraticExtension::<GoldilocksField>::primitive_root_of_unity(degree_bits).inverse(),
-        );
-        let z_last = extension_chip.sub(ctx, &challenges.stark_zeta, &last);
+        // let zeta_pow_deg = extension_chip.exp_power_of_2(ctx, &challenges.stark_zeta, degree_bits);
+        // let z_h_zeta = extension_chip.sub(ctx, &zeta_pow_deg, &one);
+        // let (l_0, l_last) =
+        //     self.eval_l_0_and_l_last_circuit(ctx, degree_bits, challenges.stark_zeta, z_h_zeta);
+        // let last = extension_chip.load_constant(
+        //     ctx,
+        //     QuadraticExtension::<GoldilocksField>::primitive_root_of_unity(degree_bits).inverse(),
+        // );
+        // let z_last = extension_chip.sub(ctx, &challenges.stark_zeta, &last);
 
-        let permutation_data = stark
-            .uses_permutation_args()
-            .then(|| PermutationCheckDataWire {
-                local_zs: permutation_zs.as_ref().unwrap().clone(),
-                next_zs: permutation_zs_next.as_ref().unwrap().clone(),
-                permutation_challenge_sets: challenges.permutation_challenge_sets.unwrap(),
-            });
+        // let permutation_data = stark
+        //     .uses_permutation_args()
+        //     .then(|| PermutationCheckDataWire {
+        //         local_zs: permutation_zs.as_ref().unwrap().clone(),
+        //         next_zs: permutation_zs_next.as_ref().unwrap().clone(),
+        //         permutation_challenge_sets: challenges.permutation_challenge_sets.unwrap(),
+        //     });
 
         // TODO: Find a way to elegantly add this back in.
         // let mut consumer = RecursiveConstraintConsumer::<F, D>::new(
@@ -368,6 +340,35 @@ impl<F: ScalarField> StarkChip<F> {
             &merkle_caps,
             &proof.opening_proof,
             &inner_config.fri_params(degree_bits),
+        );
+    }
+
+    pub fn verify_proof<S: Stark<GoldilocksField, 2>>(
+        &mut self, // TODO: Make this immutable
+        ctx: &mut Context<F>,
+        stark: S,
+        proof_with_pis: StarkProofWithPublicInputsWire<F, HC::HashWire>,
+        inner_config: &StarkConfig,
+    ) where
+        [(); S::COLUMNS]:,
+        [(); S::PUBLIC_INPUTS]:,
+    {
+        assert_eq!(proof_with_pis.public_inputs.len(), S::PUBLIC_INPUTS);
+        let degree_bits = proof_with_pis.proof.recover_degree_bits(inner_config);
+        let challenges = self.challenger_chip.get_stark_challenges::<S>(
+            ctx,
+            &proof_with_pis.proof,
+            &stark,
+            inner_config,
+        );
+
+        self.verify_proof_with_challenges::<S>(
+            ctx,
+            stark,
+            proof_with_pis,
+            challenges,
+            inner_config,
+            degree_bits,
         );
     }
 }
@@ -435,7 +436,7 @@ mod tests {
             let fri_chip = FriChip::new(extension_chip, merkle_chip);
             let mut stark_chip = StarkChip::new(challenger_chip, fri_chip);
 
-            let witness_chip = WitnessChip::new();
+            let witness_chip = WitnessChip::<Fr, PoseidonChip<Fr>>::new(poseidon_chip);
 
             let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
 

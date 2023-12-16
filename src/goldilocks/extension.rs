@@ -1,4 +1,3 @@
-use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::extension::quadratic::QuadraticExtension;
@@ -46,14 +45,6 @@ pub struct GoldilocksQuadExtChip<F: ScalarField> {
 impl<F: ScalarField> GoldilocksQuadExtChip<F> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>) -> Self {
         Self { goldilocks_chip }
-    }
-
-    pub fn gate(&self) -> &GateChip<F> {
-        self.goldilocks_chip.gate()
-    }
-
-    pub fn range(&self) -> &RangeChip<F> {
-        self.goldilocks_chip.range()
     }
 
     pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {

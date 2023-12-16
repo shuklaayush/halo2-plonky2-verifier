@@ -1,48 +1,56 @@
-use halo2_base::gates::{GateChip, RangeChip};
+use std::marker::PhantomData;
+
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
-use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::field::types::Field;
-use plonky2::hash::hash_types::NUM_HASH_OUT_ELTS;
 
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
-use crate::hash::poseidon::hash::PoseidonChip;
-use crate::hash::HashOutWire;
+use crate::hash::{HashWire, HasherChip};
 
 #[derive(Clone, Debug)]
-pub struct MerkleCapWire<F: ScalarField>(pub Vec<HashOutWire<F>>);
+pub struct MerkleCapWire<F: ScalarField, HW: HashWire<F>>(pub Vec<HW>, PhantomData<F>);
 
-#[derive(Debug)]
-pub struct MerkleProofWire<F: ScalarField> {
-    pub siblings: Vec<HashOutWire<F>>,
+impl<F: ScalarField, HW: HashWire<F>> MerkleCapWire<F, HW> {
+    pub fn new(hashes: Vec<HW>) -> Self {
+        Self(hashes, PhantomData)
+    }
 }
 
-pub struct MerkleTreeChip<F: ScalarField> {
-    poseidon_chip: PoseidonChip<F>,
+#[derive(Debug)]
+pub struct MerkleProofWire<F: ScalarField, HW: HashWire<F>> {
+    pub siblings: Vec<HW>,
+    _marker: PhantomData<F>,
+}
+
+impl<F: ScalarField, HW: HashWire<F>> MerkleProofWire<F, HW> {
+    pub fn new(hashes: Vec<HW>) -> Self {
+        Self {
+            siblings: hashes,
+            _marker: PhantomData,
+        }
+    }
+}
+
+pub struct MerkleTreeChip<F: ScalarField, HC: HasherChip<F>> {
+    hasher_chip: HC,
+    _marker: PhantomData<F>,
 }
 
 // TODO: Generalize for field extensions
-impl<F: ScalarField> MerkleTreeChip<F> {
-    // TODO: Do I need this function? Isn't it just the default constructor?
-    pub fn new(poseidon_chip: PoseidonChip<F>) -> Self {
-        Self { poseidon_chip }
-    }
-
-    pub fn gate(&self) -> &GateChip<F> {
-        self.poseidon_chip.gate()
-    }
-
-    pub fn range(&self) -> &RangeChip<F> {
-        self.poseidon_chip.range()
+impl<F: ScalarField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
+    pub fn new(hasher_chip: HC) -> Self {
+        Self {
+            hasher_chip,
+            _marker: PhantomData,
+        }
     }
 
     pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
-        self.poseidon_chip.goldilocks_chip()
+        self.hasher_chip.goldilocks_chip()
     }
 
-    pub fn poseidon_chip(&self) -> &PoseidonChip<F> {
-        &self.poseidon_chip
+    pub fn hasher_chip(&self) -> &HC {
+        &self.hasher_chip
     }
 
     pub fn verify_proof_to_cap_with_cap_index(
@@ -51,46 +59,22 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         leaf_data: &[GoldilocksWire<F>],
         leaf_index_bits: &[BoolWire<F>],
         cap_index: &GoldilocksWire<F>,
-        merkle_cap: &MerkleCapWire<F>,
-        proof: &MerkleProofWire<F>,
+        merkle_cap: &MerkleCapWire<F, HC::HashWire>,
+        proof: &MerkleProofWire<F, HC::HashWire>,
     ) {
-        let poseidon_chip = self.poseidon_chip();
+        let hasher_chip = self.hasher_chip();
         let goldilocks_chip = self.goldilocks_chip();
 
-        let one = goldilocks_chip.load_one(ctx);
-        let mut node = poseidon_chip.hash_or_noop(ctx, leaf_data);
+        let mut node = hasher_chip.hash_or_noop(ctx, leaf_data);
         for (&sibling, bit) in proof.siblings.iter().zip(leaf_index_bits.iter()) {
-            // TODO: Ugly
-            let one_minus_bit = goldilocks_chip.sub(ctx, &one, &(*bit).into());
             // TODO: Is there a more efficient to way to select both at once?
-            let left = HashOutWire {
-                elements: goldilocks_chip.select_array(
-                    ctx,
-                    node.elements,
-                    sibling.elements,
-                    &one_minus_bit.into(),
-                ),
-            };
-            let right = HashOutWire {
-                elements: goldilocks_chip.select_array(ctx, node.elements, sibling.elements, bit),
-            };
-            node = poseidon_chip.two_to_one(ctx, &left, &right);
+            let left = hasher_chip.select(ctx, &sibling, &node, bit);
+            let right = hasher_chip.select(ctx, &node, &sibling, bit);
+            node = hasher_chip.two_to_one(ctx, &left, &right);
         }
 
-        // TODO: Abstract this away to hash chip
-        let root = goldilocks_chip.select_array_from_idx(
-            ctx,
-            merkle_cap
-                .0
-                .iter()
-                .map(|node| node.elements)
-                .collect::<Vec<_>>()
-                .as_slice(),
-            &cap_index,
-        );
-        for i in 0..NUM_HASH_OUT_ELTS {
-            goldilocks_chip.assert_equal(ctx, &root[i], &node.elements[i])
-        }
+        let root = hasher_chip.select_from_idx(ctx, merkle_cap.0.as_slice(), cap_index);
+        hasher_chip.assert_equal(ctx, &root, &node);
     }
 
     // TODO: This is effectively checking doing merkle proof for a subtree
@@ -100,8 +84,8 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         ctx: &mut Context<F>,
         leaf_data: &[GoldilocksWire<F>],
         leaf_index_bits: &[BoolWire<F>],
-        merkle_cap: &MerkleCapWire<F>,
-        proof: &MerkleProofWire<F>,
+        merkle_cap: &MerkleCapWire<F, HC::HashWire>,
+        proof: &MerkleProofWire<F, HC::HashWire>,
     ) {
         let goldilocks_chip = self.goldilocks_chip();
 
@@ -123,10 +107,10 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         ctx: &mut Context<F>,
         leaf_data: &[GoldilocksWire<F>],
         leaf_index_bits: &[BoolWire<F>],
-        merkle_root: &HashOutWire<F>,
-        proof: &MerkleProofWire<F>,
+        merkle_root: &HC::HashWire,
+        proof: &MerkleProofWire<F, HC::HashWire>,
     ) {
-        let merkle_cap = MerkleCapWire(vec![*merkle_root]);
+        let merkle_cap = MerkleCapWire::new(vec![*merkle_root]);
         self.verify_proof_to_cap(ctx, leaf_data, leaf_index_bits, &merkle_cap, proof);
     }
 }
@@ -145,6 +129,8 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::Rng;
     use rand_core::SeedableRng;
+
+    use crate::hash::poseidon::hash::{PoseidonChip, PoseidonHashWire};
 
     #[test]
     fn test_verify_proof_to_cap() {
@@ -180,9 +166,9 @@ mod tests {
                 )
                 .unwrap();
 
-                let cap_wire = MerkleCapWire(
+                let cap_wire = MerkleCapWire::new(
                     (0..merkle_tree.cap.0.len())
-                        .map(|i| HashOutWire {
+                        .map(|i| PoseidonHashWire {
                             elements: goldilocks_chip
                                 .load_constant_array(ctx, &merkle_tree.cap.0[i].elements),
                         })
@@ -190,15 +176,15 @@ mod tests {
                 );
                 let leaf_wire = goldilocks_chip
                     .load_constant_slice(ctx, merkle_tree.leaves[leaf_idx].as_slice());
-                let proof_wire = MerkleProofWire {
-                    siblings: merkle_proof
+                let proof_wire = MerkleProofWire::new(
+                    merkle_proof
                         .siblings
                         .iter()
-                        .map(|sibling| HashOutWire {
+                        .map(|sibling| PoseidonHashWire {
                             elements: goldilocks_chip.load_constant_array(ctx, &sibling.elements),
                         })
                         .collect::<Vec<_>>(),
-                };
+                );
 
                 merkle_chip.verify_proof_to_cap(
                     ctx,
@@ -244,21 +230,21 @@ mod tests {
                 )
                 .unwrap();
 
-                let root_wire = HashOutWire {
+                let root_wire = PoseidonHashWire {
                     elements: goldilocks_chip
                         .load_constant_array(ctx, &merkle_tree.cap.0[0].elements),
                 };
                 let leaf_wire = goldilocks_chip
                     .load_constant_slice(ctx, merkle_tree.leaves[leaf_idx].as_slice());
-                let proof_wire = MerkleProofWire {
-                    siblings: merkle_proof
+                let proof_wire = MerkleProofWire::new(
+                    merkle_proof
                         .siblings
                         .iter()
-                        .map(|sibling| HashOutWire {
+                        .map(|sibling| PoseidonHashWire {
                             elements: goldilocks_chip.load_constant_array(ctx, &sibling.elements),
                         })
                         .collect::<Vec<_>>(),
-                };
+                );
 
                 merkle_chip.verify_proof(
                     ctx,

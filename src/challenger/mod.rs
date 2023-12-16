@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
@@ -12,18 +14,19 @@ use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoe
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::hash::poseidon::permutation::{PoseidonPermutationChip, PoseidonStateWire};
-use crate::hash::HashOutWire;
+use crate::hash::{HashWire, HasherChip};
 use crate::merkle::MerkleCapWire;
 use crate::stark::{StarkProofChallengesWire, StarkProofWire};
 
-pub struct ChallengerChip<F: ScalarField> {
+pub struct ChallengerChip<F: ScalarField, HC: HasherChip<F>> {
     permutation_chip: PoseidonPermutationChip<F>,
     sponge_state: PoseidonStateWire<F>,
     input_buffer: Vec<GoldilocksWire<F>>,
     output_buffer: Vec<GoldilocksWire<F>>,
+    _marker: PhantomData<HC>,
 }
 
-impl<F: ScalarField> ChallengerChip<F> {
+impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     // TODO: Initialize state as zero.
     pub fn new(permutation_chip: PoseidonPermutationChip<F>, state: PoseidonStateWire<F>) -> Self {
         Self {
@@ -31,6 +34,7 @@ impl<F: ScalarField> ChallengerChip<F> {
             sponge_state: state,
             input_buffer: vec![],
             output_buffer: vec![],
+            _marker: PhantomData,
         }
     }
 
@@ -63,11 +67,11 @@ impl<F: ScalarField> ChallengerChip<F> {
         }
     }
 
-    pub fn observe_hash(&mut self, hash: &HashOutWire<F>) {
-        self.observe_elements(&hash.elements)
+    pub fn observe_hash(&mut self, hash: &HC::HashWire) {
+        self.observe_elements(&hash.to_elements())
     }
 
-    pub fn observe_cap(&mut self, cap: &MerkleCapWire<F>) {
+    pub fn observe_cap(&mut self, cap: &MerkleCapWire<F, HC::HashWire>) {
         for hash in &cap.0 {
             self.observe_hash(hash)
         }
@@ -107,17 +111,6 @@ impl<F: ScalarField> ChallengerChip<F> {
         (0..n).map(|_| self.get_challenge(ctx)).collect()
     }
 
-    pub fn get_hash(&mut self, ctx: &mut Context<F>) -> HashOutWire<F> {
-        HashOutWire {
-            elements: [
-                self.get_challenge(ctx),
-                self.get_challenge(ctx),
-                self.get_challenge(ctx),
-                self.get_challenge(ctx),
-            ],
-        }
-    }
-
     pub fn get_extension_challenge(&mut self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
         // TODO: Remove hardcode
         GoldilocksQuadExtWire(self.get_n_challenges(ctx, 2).try_into().unwrap())
@@ -126,7 +119,7 @@ impl<F: ScalarField> ChallengerChip<F> {
     pub fn get_fri_challenges(
         &mut self,
         ctx: &mut Context<F>,
-        commit_phase_merkle_caps: &[MerkleCapWire<F>],
+        commit_phase_merkle_caps: &[MerkleCapWire<F, HC::HashWire>],
         final_poly: &PolynomialCoeffsExtWire<F>,
         pow_witness: &GoldilocksWire<F>,
         inner_fri_config: &FriConfig,
@@ -164,7 +157,7 @@ impl<F: ScalarField> ChallengerChip<F> {
     pub fn get_stark_challenges<S: Stark<GoldilocksField, 2>>(
         &mut self,
         ctx: &mut Context<F>,
-        proof: &StarkProofWire<F>,
+        proof: &StarkProofWire<F, HC::HashWire>,
         stark: &S,
         config: &StarkConfig,
     ) -> StarkProofChallengesWire<F> {

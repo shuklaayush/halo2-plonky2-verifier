@@ -1,14 +1,48 @@
-use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
+use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
-use plonky2::hash::hash_types::NUM_HASH_OUT_ELTS;
-use plonky2::hash::poseidon::{SPONGE_RATE, SPONGE_WIDTH};
+use plonky2::hash::hash_types::{HashOut, NUM_HASH_OUT_ELTS};
+use plonky2::hash::poseidon::{PoseidonHash, SPONGE_RATE, SPONGE_WIDTH};
 
 use super::permutation::{PoseidonPermutationChip, PoseidonStateWire};
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
-use crate::hash::HashOutWire;
+use crate::goldilocks::BoolWire;
+use crate::hash::{HashWire, HasherChip};
+
+/// Represents a ~256 bit hash output.
+#[derive(Copy, Clone, Debug)]
+pub struct PoseidonHashWire<F: ScalarField> {
+    pub elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS],
+}
+
+impl<F: ScalarField> HashWire<F> for PoseidonHashWire<F> {
+    fn from_partial(elements_in: &[GoldilocksWire<F>], zero: GoldilocksWire<F>) -> Self {
+        let mut elements = [zero; NUM_HASH_OUT_ELTS];
+        elements[0..elements_in.len()].copy_from_slice(elements_in);
+        Self { elements }
+    }
+
+    fn to_elements(&self) -> Vec<GoldilocksWire<F>> {
+        self.elements.into()
+    }
+}
+
+impl<F: ScalarField> From<[GoldilocksWire<F>; NUM_HASH_OUT_ELTS]> for PoseidonHashWire<F> {
+    fn from(elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS]) -> Self {
+        Self { elements }
+    }
+}
+
+// impl<F: ScalarField> TryFrom<&[GoldilocksWire<F>]> for PoseidonHashWire<F> {
+//     type Error = anyhow::Error;
+
+//     fn try_from(elements: &[GoldilocksWire<F>]) -> Result<Self, Self::Error> {
+//         ensure!(elements.len() == NUM_HASH_OUT_ELTS);
+//         Ok(Self(elements.try_into().unwrap()))
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub struct PoseidonChip<F: ScalarField> {
@@ -25,41 +59,84 @@ impl<F: ScalarField> PoseidonChip<F> {
         Self { permutation_chip }
     }
 
-    pub fn gate(&self) -> &GateChip<F> {
-        self.goldilocks_chip().gate()
-    }
-
-    pub fn range(&self) -> &RangeChip<F> {
-        self.goldilocks_chip().range()
-    }
-    pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
-        self.permutation_chip().goldilocks_chip()
-    }
-
     pub fn permutation_chip(&self) -> &PoseidonPermutationChip<F> {
         &self.permutation_chip
     }
+}
 
-    pub fn hash_or_noop(
+impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
+    const HASH_SIZE: usize = NUM_HASH_OUT_ELTS;
+
+    type Hasher = PoseidonHash;
+    type Hash = HashOut<GoldilocksField>;
+
+    type HashWire = PoseidonHashWire<F>;
+
+    fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
+        self.permutation_chip().goldilocks_chip()
+    }
+
+    fn load_constant(
         &self,
         ctx: &mut Context<F>,
-        inputs: &[GoldilocksWire<F>],
-    ) -> HashOutWire<F> {
-        let chip = self.goldilocks_chip();
-
-        let zero = chip.load_zero(ctx);
-        if inputs.len() <= NUM_HASH_OUT_ELTS {
-            HashOutWire::from_partial(inputs, zero)
-        } else {
-            self.hash_no_pad(ctx, inputs)
+        h: HashOut<GoldilocksField>,
+    ) -> PoseidonHashWire<F> {
+        let goldilocks_chip = self.goldilocks_chip();
+        PoseidonHashWire {
+            elements: h
+                .elements
+                .iter()
+                .map(|&x| goldilocks_chip.load_constant(ctx, x))
+                .collect_vec()
+                .try_into()
+                .unwrap(),
         }
     }
 
-    pub fn hash_no_pad(
+    fn select(
+        &self,
+        ctx: &mut Context<F>,
+        a: &PoseidonHashWire<F>,
+        b: &PoseidonHashWire<F>,
+        sel: &BoolWire<F>,
+    ) -> PoseidonHashWire<F> {
+        let goldilocks_chip = self.goldilocks_chip();
+        PoseidonHashWire {
+            elements: goldilocks_chip.select_array(ctx, a.elements, b.elements, &sel),
+        }
+    }
+
+    fn select_from_idx(
+        &self,
+        ctx: &mut Context<F>,
+        a: &[PoseidonHashWire<F>],
+        idx: &GoldilocksWire<F>,
+    ) -> PoseidonHashWire<F> {
+        let goldilocks_chip = self.goldilocks_chip();
+        PoseidonHashWire {
+            elements: goldilocks_chip.select_array_from_idx(
+                ctx,
+                a.iter()
+                    .map(|hash| hash.elements)
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+                &idx,
+            ),
+        }
+    }
+
+    fn assert_equal(&self, ctx: &mut Context<F>, a: &PoseidonHashWire<F>, b: &PoseidonHashWire<F>) {
+        let goldilocks_chip = self.goldilocks_chip();
+        for i in 0..NUM_HASH_OUT_ELTS {
+            goldilocks_chip.assert_equal(ctx, &a.elements[i], &b.elements[i])
+        }
+    }
+
+    fn hash_no_pad(
         &self,
         ctx: &mut Context<F>,
         values: &[GoldilocksWire<F>],
-    ) -> HashOutWire<F> {
+    ) -> PoseidonHashWire<F> {
         let gl_chip = self.goldilocks_chip();
         let permutation_chip = self.permutation_chip();
 
@@ -78,18 +155,18 @@ impl<F: ScalarField> PoseidonChip<F> {
 
         // Squeeze until we have the desired number of outputs.
         // TODO: Fix
-        HashOutWire {
+        PoseidonHashWire {
             elements: state.squeeze()[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
         }
     }
 
     // TODO: Dedup by reusing hash_no_pad
-    pub fn two_to_one(
+    fn two_to_one(
         &self,
         ctx: &mut Context<F>,
-        left: &HashOutWire<F>,
-        right: &HashOutWire<F>,
-    ) -> HashOutWire<F> {
+        left: &PoseidonHashWire<F>,
+        right: &PoseidonHashWire<F>,
+    ) -> PoseidonHashWire<F> {
         let gl_chip = self.goldilocks_chip();
         let permutation_chip = self.permutation_chip();
 
@@ -104,7 +181,7 @@ impl<F: ScalarField> PoseidonChip<F> {
         state = permutation_chip.permute(ctx, &state);
 
         // TODO: Fix
-        HashOutWire {
+        PoseidonHashWire {
             elements: state.squeeze()[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
         }
     }
@@ -149,12 +226,12 @@ mod tests {
 
             for _ in 0..10 {
                 let hash1 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
-                let hash1_wire = HashOutWire {
+                let hash1_wire = PoseidonHashWire {
                     elements: goldilocks_chip.load_constant_array(ctx, &hash1.elements),
                 };
 
                 let hash2 = PoseidonHash::hash_no_pad(&[GoldilocksField::rand()]);
-                let hash2_wire = HashOutWire {
+                let hash2_wire = PoseidonHashWire {
                     elements: goldilocks_chip.load_constant_array(ctx, &hash2.elements),
                 };
 

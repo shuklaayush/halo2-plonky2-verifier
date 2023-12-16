@@ -1,35 +1,74 @@
+use halo2_base::{utils::ScalarField, Context};
+use plonky2::{
+    field::goldilocks_field::GoldilocksField,
+    plonk::config::{GenericHashOut, Hasher},
+};
+
+use crate::goldilocks::{
+    field::{GoldilocksChip, GoldilocksWire},
+    BoolWire,
+};
+
 pub mod poseidon;
+// pub mod poseidon_bn254;
 
-use halo2_base::utils::ScalarField;
-use plonky2::hash::hash_types::NUM_HASH_OUT_ELTS;
+pub trait HashWire<F: ScalarField>: Copy + Clone {
+    fn from_partial(elements_in: &[GoldilocksWire<F>], zero: GoldilocksWire<F>) -> Self;
 
-use crate::goldilocks::field::GoldilocksWire;
-
-/// Represents a ~256 bit hash output.
-#[derive(Copy, Clone, Debug)]
-pub struct HashOutWire<F: ScalarField> {
-    pub elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS],
+    fn to_elements(&self) -> Vec<GoldilocksWire<F>>;
 }
 
-impl<F: ScalarField> HashOutWire<F> {
-    pub fn from_partial(elements_in: &[GoldilocksWire<F>], zero: GoldilocksWire<F>) -> Self {
-        let mut elements = [zero; NUM_HASH_OUT_ELTS];
-        elements[0..elements_in.len()].copy_from_slice(elements_in);
-        Self { elements }
+/// Trait for hash functions.
+pub trait HasherChip<F: ScalarField> {
+    /// Size of `Hash` in number of Goldilocks elements.
+    const HASH_SIZE: usize;
+
+    type Hasher: Hasher<GoldilocksField>;
+    type Hash: GenericHashOut<GoldilocksField>;
+
+    /// Hash Output
+    type HashWire: HashWire<F>;
+
+    fn goldilocks_chip(&self) -> &GoldilocksChip<F>;
+
+    fn load_constant(&self, ctx: &mut Context<F>, constant: Self::Hash) -> Self::HashWire;
+
+    fn select(
+        &self,
+        ctx: &mut Context<F>,
+        a: &Self::HashWire,
+        b: &Self::HashWire,
+        sel: &BoolWire<F>,
+    ) -> Self::HashWire;
+
+    fn select_from_idx(
+        &self,
+        ctx: &mut Context<F>,
+        a: &[Self::HashWire],
+        idx: &GoldilocksWire<F>,
+    ) -> Self::HashWire;
+
+    fn assert_equal(&self, ctx: &mut Context<F>, a: &Self::HashWire, b: &Self::HashWire);
+
+    /// Hash a message without any padding step. Note that this can enable length-extension attacks.
+    /// However, it is still collision-resistant in cases where the input has a fixed length.
+    fn hash_no_pad(&self, ctx: &mut Context<F>, input: &[GoldilocksWire<F>]) -> Self::HashWire;
+
+    /// Hash the slice if necessary to reduce its length to ~256 bits. If it already fits, this is a
+    /// no-op.
+    fn hash_or_noop(&self, ctx: &mut Context<F>, inputs: &[GoldilocksWire<F>]) -> Self::HashWire {
+        if inputs.len() <= Self::HASH_SIZE {
+            let zero = self.goldilocks_chip().load_zero(ctx);
+            Self::HashWire::from_partial(inputs, zero)
+        } else {
+            self.hash_no_pad(ctx, inputs)
+        }
     }
+
+    fn two_to_one(
+        &self,
+        ctx: &mut Context<F>,
+        left: &Self::HashWire,
+        right: &Self::HashWire,
+    ) -> Self::HashWire;
 }
-
-impl<F: ScalarField> From<[GoldilocksWire<F>; NUM_HASH_OUT_ELTS]> for HashOutWire<F> {
-    fn from(elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS]) -> Self {
-        Self { elements }
-    }
-}
-
-// impl<F: ScalarField> TryFrom<&[GoldilocksWire<F>]> for HashOutWire<F> {
-//     type Error = anyhow::Error;
-
-//     fn try_from(elements: &[GoldilocksWire<F>]) -> Result<Self, Self::Error> {
-//         ensure!(elements.len() == NUM_HASH_OUT_ELTS);
-//         Ok(Self(elements.try_into().unwrap()))
-//     }
-// }

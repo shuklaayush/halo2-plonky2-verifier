@@ -50,6 +50,9 @@ pub struct GoldilocksChip<F: ScalarField> {
     pub range: RangeChip<F>, // TODO: Change to reference and add lifetime?
 }
 
+// TODO: Abstract away as generic FieldChip trait?
+//       Change load_* syntax to just *. `load_zero` -> `zero`, `load_constant` -> `constant`
+//       Pass values instead of references since they are cheap to copy?
 impl<F: ScalarField> GoldilocksChip<F> {
     pub fn new(range: RangeChip<F>) -> Self {
         Self { range }
@@ -63,12 +66,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
     pub fn range(&self) -> &RangeChip<F> {
         &self.range
     }
-}
 
-// TODO: Abstract away as generic FieldChip trait?
-//       Change load_* syntax to just *. `load_zero` -> `zero`, `load_constant` -> `constant`
-//       Pass values instead of references since they are cheap to copy?
-impl<F: ScalarField> GoldilocksChip<F> {
     pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
         GoldilocksWire(ctx.load_zero())
     }

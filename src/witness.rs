@@ -6,7 +6,6 @@ use plonky2::{
     field::{
         extension::{quadratic::QuadraticExtension, FieldExtension},
         goldilocks_field::GoldilocksField,
-        types::PrimeField64,
     },
     fri::{proof::FriProof, structure::FriOpenings},
     hash::{hash_types::HashOut, merkle_tree::MerkleCap, poseidon::PoseidonHash},
@@ -19,47 +18,50 @@ use crate::{
         FriInitialTreeProofWire, FriOpeningBatchWire, FriOpeningsWire, FriProofWire,
         FriQueryRoundWire, FriQueryStepWire, PolynomialCoeffsExtWire,
     },
-    goldilocks::{extension::GoldilocksQuadExtWire, field::GoldilocksWire},
-    hash::HashOutWire,
+    goldilocks::{
+        extension::GoldilocksQuadExtWire,
+        field::{GoldilocksChip, GoldilocksWire},
+    },
+    hash::HasherChip,
     merkle::{MerkleCapWire, MerkleProofWire},
     stark::{StarkOpeningSetWire, StarkProofWire, StarkProofWithPublicInputsWire},
 };
 
 // TODO: Follow plonky2 pattern of `load_witness` (add target) and `assert_equal` (set target)
 //       instead of `load_constant`?
-pub struct WitnessChip<F: ScalarField> {
+pub struct WitnessChip<F: ScalarField, HC: HasherChip<F>> {
+    hasher_chip: HC,
     _marker: PhantomData<F>,
 }
 
-impl<F: ScalarField> WitnessChip<F> {
-    pub fn new() -> Self {
+impl<F: ScalarField, HC: HasherChip<F, Hasher = PoseidonHash, Hash = HashOut<GoldilocksField>>>
+    WitnessChip<F, HC>
+{
+    pub fn new(hasher_chip: HC) -> Self {
         Self {
+            hasher_chip,
             _marker: PhantomData,
         }
     }
 
-    fn load(&self, ctx: &mut Context<F>, value: GoldilocksField) -> GoldilocksWire<F> {
-        GoldilocksWire(ctx.load_constant(F::from(value.to_canonical_u64())))
+    fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
+        self.hasher_chip.goldilocks_chip()
     }
 
-    fn load_hash(&self, ctx: &mut Context<F>, value: HashOut<GoldilocksField>) -> HashOutWire<F> {
-        HashOutWire {
-            elements: value
-                .elements
-                .iter()
-                .map(|&x| self.load(ctx, x))
-                .collect_vec()
-                .try_into()
-                .unwrap(),
-        }
+    fn load(&self, ctx: &mut Context<F>, value: GoldilocksField) -> GoldilocksWire<F> {
+        self.goldilocks_chip().load_constant(ctx, value)
+    }
+
+    fn load_hash(&self, ctx: &mut Context<F>, value: HC::Hash) -> HC::HashWire {
+        self.hasher_chip.load_constant(ctx, value)
     }
 
     fn load_cap(
         &self,
         ctx: &mut Context<F>,
-        value: &MerkleCap<GoldilocksField, PoseidonHash>,
-    ) -> MerkleCapWire<F> {
-        MerkleCapWire(
+        value: &MerkleCap<GoldilocksField, HC::Hasher>,
+    ) -> MerkleCapWire<F, HC::HashWire> {
+        MerkleCapWire::new(
             value
                 .0
                 .iter()
@@ -139,7 +141,7 @@ impl<F: ScalarField> WitnessChip<F> {
         &self,
         ctx: &mut Context<F>,
         fri_proof: &FriProof<GoldilocksField, PoseidonHash, 2>,
-    ) -> FriProofWire<F> {
+    ) -> FriProofWire<F, HC::HashWire> {
         let pow_witness = self.load(ctx, fri_proof.pow_witness);
 
         let final_poly = PolynomialCoeffsExtWire(
@@ -169,13 +171,13 @@ impl<F: ScalarField> WitnessChip<F> {
                         .map(|(evals, proof)| {
                             (
                                 evals.iter().map(|&x| self.load(ctx, x)).collect_vec(),
-                                MerkleProofWire {
-                                    siblings: proof
+                                MerkleProofWire::new(
+                                    proof
                                         .siblings
                                         .iter()
                                         .map(|&x| self.load_hash(ctx, x))
                                         .collect_vec(),
-                                },
+                                ),
                             )
                         })
                         .collect_vec(),
@@ -190,14 +192,13 @@ impl<F: ScalarField> WitnessChip<F> {
                             .iter()
                             .map(|&x| self.load_extension(ctx, x))
                             .collect_vec();
-                        let merkle_proof = MerkleProofWire {
-                            siblings: step
-                                .merkle_proof
+                        let merkle_proof = MerkleProofWire::new(
+                            step.merkle_proof
                                 .siblings
                                 .iter()
                                 .map(|&x| self.load_hash(ctx, x))
                                 .collect_vec(),
-                        };
+                        );
 
                         FriQueryStepWire {
                             evals,
@@ -225,7 +226,7 @@ impl<F: ScalarField> WitnessChip<F> {
         &self,
         ctx: &mut Context<F>,
         proof: &StarkProof<GoldilocksField, PoseidonGoldilocksConfig, 2>,
-    ) -> StarkProofWire<F> {
+    ) -> StarkProofWire<F, HC::HashWire> {
         let trace_cap = self.load_cap(ctx, &proof.trace_cap);
         let quotient_polys_cap = self.load_cap(ctx, &proof.quotient_polys_cap);
 
@@ -253,7 +254,7 @@ impl<F: ScalarField> WitnessChip<F> {
         ctx: &mut Context<F>,
         // TODO: Make generic
         proof_with_pis: StarkProofWithPublicInputs<GoldilocksField, PoseidonGoldilocksConfig, 2>,
-    ) -> StarkProofWithPublicInputsWire<F> {
+    ) -> StarkProofWithPublicInputsWire<F, HC::HashWire> {
         let StarkProofWithPublicInputs {
             proof,
             public_inputs,

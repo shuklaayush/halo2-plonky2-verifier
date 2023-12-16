@@ -1,8 +1,7 @@
-use halo2_base::gates::{GateChip, RangeChip, RangeInstructions};
+use halo2_base::gates::{RangeChip, RangeInstructions};
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use itertools::Itertools;
-use plonky2::field::extension::quadratic::QuadraticExtension;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::interpolation::barycentric_weights;
 use plonky2::field::types::Field;
@@ -13,8 +12,7 @@ use plonky2::util::{log2_strict, reverse_index_bits_in_place};
 use crate::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire};
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
-use crate::hash::poseidon::hash::PoseidonChip;
-use crate::hash::HashOutWire;
+use crate::hash::{HashWire, HasherChip};
 use crate::merkle::{MerkleCapWire, MerkleProofWire, MerkleTreeChip};
 
 pub struct FriInstanceInfoWire<F: ScalarField> {
@@ -39,11 +37,6 @@ pub struct FriOpeningBatchWire<F: ScalarField> {
 
 pub struct PrecomputedReducedOpeningsWire<F: ScalarField> {
     reduced_openings_at_point: Vec<GoldilocksQuadExtWire<F>>,
-}
-
-pub struct ReducingFactorWire<F: ScalarField> {
-    base: GoldilocksQuadExtWire<F>,
-    count: u64,
 }
 
 impl<F: ScalarField> PrecomputedReducedOpeningsWire<F> {
@@ -73,44 +66,39 @@ pub struct FriChallengesWire<F: ScalarField> {
 
 pub struct PolynomialCoeffsExtWire<F: ScalarField>(pub Vec<GoldilocksQuadExtWire<F>>);
 
-pub struct FriProofWire<F: ScalarField> {
-    pub commit_phase_merkle_caps: Vec<MerkleCapWire<F>>,
-    pub query_round_proofs: Vec<FriQueryRoundWire<F>>,
+pub struct FriProofWire<F: ScalarField, HW: HashWire<F>> {
+    pub commit_phase_merkle_caps: Vec<MerkleCapWire<F, HW>>,
+    pub query_round_proofs: Vec<FriQueryRoundWire<F, HW>>,
     pub final_poly: PolynomialCoeffsExtWire<F>,
     pub pow_witness: GoldilocksWire<F>,
 }
 
 #[derive(Debug)]
-pub struct FriInitialTreeProofWire<F: ScalarField> {
-    pub evals_proofs: Vec<(Vec<GoldilocksWire<F>>, MerkleProofWire<F>)>,
+pub struct FriInitialTreeProofWire<F: ScalarField, HW: HashWire<F>> {
+    pub evals_proofs: Vec<(Vec<GoldilocksWire<F>>, MerkleProofWire<F, HW>)>,
 }
 
 #[derive(Debug)]
-pub struct FriQueryStepWire<F: ScalarField> {
+pub struct FriQueryStepWire<F: ScalarField, HW: HashWire<F>> {
     pub evals: Vec<GoldilocksQuadExtWire<F>>,
-    pub merkle_proof: MerkleProofWire<F>,
+    pub merkle_proof: MerkleProofWire<F, HW>,
 }
 
 #[derive(Debug)]
-pub struct FriQueryRoundWire<F: ScalarField> {
-    pub initial_trees_proof: FriInitialTreeProofWire<F>,
-    pub steps: Vec<FriQueryStepWire<F>>,
+pub struct FriQueryRoundWire<F: ScalarField, HW: HashWire<F>> {
+    pub initial_trees_proof: FriInitialTreeProofWire<F, HW>,
+    pub steps: Vec<FriQueryStepWire<F, HW>>,
 }
 
-pub struct FriPrecomputedReducedEvalWire<F: ScalarField> {
-    pub precomputed_reduced_evals: PrecomputedReducedOpeningsWire<F>,
-    pub precomputed_reduced_evals_hash: HashOutWire<F>,
-}
-
-pub struct FriChip<F: ScalarField> {
+pub struct FriChip<F: ScalarField, HC: HasherChip<F>> {
     extension_chip: GoldilocksQuadExtChip<F>,
-    merkle_tree_chip: MerkleTreeChip<F>,
+    merkle_tree_chip: MerkleTreeChip<F, HC>,
 }
 
-impl<F: ScalarField> FriChip<F> {
+impl<F: ScalarField, HC: HasherChip<F>> FriChip<F, HC> {
     pub fn new(
         extension_chip: GoldilocksQuadExtChip<F>,
-        merkle_tree_chip: MerkleTreeChip<F>,
+        merkle_tree_chip: MerkleTreeChip<F, HC>,
     ) -> Self {
         Self {
             extension_chip,
@@ -118,27 +106,20 @@ impl<F: ScalarField> FriChip<F> {
         }
     }
 
-    pub fn gate(&self) -> &GateChip<F> {
-        self.merkle_tree_chip.gate()
-    }
-
     pub fn range(&self) -> &RangeChip<F> {
-        self.merkle_tree_chip.range()
+        let goldilocks_chip = self.goldilocks_chip();
+        goldilocks_chip.range()
     }
 
     pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
         self.merkle_tree_chip.goldilocks_chip()
     }
 
-    pub fn poseidon_chip(&self) -> &PoseidonChip<F> {
-        &self.merkle_tree_chip.poseidon_chip()
-    }
-
     pub fn extension_chip(&self) -> &GoldilocksQuadExtChip<F> {
         &self.extension_chip
     }
 
-    pub fn merkle_tree_chip(&self) -> &MerkleTreeChip<F> {
+    pub fn merkle_tree_chip(&self) -> &MerkleTreeChip<F, HC> {
         &self.merkle_tree_chip
     }
 
@@ -162,8 +143,8 @@ impl<F: ScalarField> FriChip<F> {
         &self,
         ctx: &mut Context<F>,
         x_index_bits: &[BoolWire<F>],
-        proof: &FriInitialTreeProofWire<F>,
-        initial_merkle_caps: &[MerkleCapWire<F>],
+        proof: &FriInitialTreeProofWire<F, HC::HashWire>,
+        initial_merkle_caps: &[MerkleCapWire<F, HC::HashWire>],
         cap_index: &GoldilocksWire<F>,
     ) {
         let merkle_tree_chip = self.merkle_tree_chip();
@@ -183,7 +164,7 @@ impl<F: ScalarField> FriChip<F> {
         &self,
         ctx: &mut Context<F>,
         instance: &FriInstanceInfoWire<F>,
-        proof: &FriInitialTreeProofWire<F>,
+        proof: &FriInitialTreeProofWire<F, HC::HashWire>,
         alpha: &GoldilocksQuadExtWire<F>,
         subgroup_x: GoldilocksWire<F>,
         precomputed_reduced_evals: &PrecomputedReducedOpeningsWire<F>,
@@ -349,11 +330,11 @@ impl<F: ScalarField> FriChip<F> {
         instance: &FriInstanceInfoWire<F>,
         challenges: &FriChallengesWire<F>,
         precomputed_reduced_evals: &PrecomputedReducedOpeningsWire<F>,
-        initial_merkle_caps: &[MerkleCapWire<F>],
-        proof: &FriProofWire<F>,
+        initial_merkle_caps: &[MerkleCapWire<F, HC::HashWire>],
+        proof: &FriProofWire<F, HC::HashWire>,
         x_index: GoldilocksWire<F>,
         n: usize,
-        round_proof: &FriQueryRoundWire<F>,
+        round_proof: &FriQueryRoundWire<F, HC::HashWire>,
         params: &FriParams,
     ) {
         let n_log = log2_strict(n);
@@ -461,8 +442,8 @@ impl<F: ScalarField> FriChip<F> {
         instance: &FriInstanceInfoWire<F>,
         openings: &FriOpeningsWire<F>,
         challenges: &FriChallengesWire<F>,
-        initial_merkle_caps: &[MerkleCapWire<F>],
-        proof: &FriProofWire<F>,
+        initial_merkle_caps: &[MerkleCapWire<F, HC::HashWire>],
+        proof: &FriProofWire<F, HC::HashWire>,
         params: &FriParams,
     ) {
         // TODO
