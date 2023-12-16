@@ -1,5 +1,6 @@
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::gates::{GateInstructions, RangeInstructions};
+use halo2_base::halo2_proofs::plonk::Assigned;
 use halo2_base::utils::{biguint_to_fe, fe_to_biguint, ScalarField};
 use halo2_base::{AssignedValue, Context};
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -11,6 +12,16 @@ use super::BoolWire;
 //       https://github.com/axiom-crypto/halo2-lib/blob/400122a6cf074783d0e5ee904a711e75ddfff3d4/halo2-base/src/safe_types/mod.rs#L109-L109
 #[derive(Copy, Clone, Debug)]
 pub struct GoldilocksWire<F: ScalarField>(pub AssignedValue<F>);
+
+// TODO: Is this correct?
+impl<F: ScalarField> Default for GoldilocksWire<F> {
+    fn default() -> GoldilocksWire<F> {
+        Self(AssignedValue {
+            value: Assigned::Zero,
+            cell: None,
+        })
+    }
+}
 
 impl<F: ScalarField> GoldilocksWire<F> {
     pub fn value_raw(&self) -> &F {
@@ -55,9 +66,20 @@ impl<F: ScalarField> GoldilocksChip<F> {
 }
 
 // TODO: Abstract away as generic FieldChip trait?
+//       Change load_* syntax to just *. `load_zero` -> `zero`, `load_constant` -> `constant`
+//       Pass values instead of references since they are cheap to copy?
 impl<F: ScalarField> GoldilocksChip<F> {
     pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
         GoldilocksWire(ctx.load_zero())
+    }
+
+    pub fn load_one(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
+        GoldilocksWire(ctx.load_constant(F::ONE))
+    }
+
+    pub fn load_neg_one(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
+        let neg_one = GoldilocksField::NEG_ONE.to_canonical_u64();
+        GoldilocksWire(ctx.load_constant(F::from(neg_one)))
     }
 
     // TODO: Keep a track of constants loaded to avoid loading them multiple times?
@@ -182,6 +204,11 @@ impl<F: ScalarField> GoldilocksChip<F> {
         )
     }
 
+    pub fn neg(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
+        let neg_one = self.load_neg_one(ctx);
+        self.mul(ctx, a, &neg_one)
+    }
+
     pub fn add(
         &self,
         ctx: &mut Context<F>,
@@ -249,6 +276,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
         GoldilocksWire(gate.mul(ctx, a.0, b.0))
     }
 
+    // TODO: Change to div_add?
     pub fn div(
         &self,
         ctx: &mut Context<F>,
@@ -319,6 +347,18 @@ impl<F: ScalarField> GoldilocksChip<F> {
         let gate = self.gate();
 
         GoldilocksWire(gate.mul_add(ctx, a.0, b.0, c.0))
+    }
+
+    // TODO: Can I use a custom gate here?
+    pub fn mul_sub(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+        c: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        let ab = self.mul(ctx, a, b);
+        self.sub(ctx, &ab, c)
     }
 
     pub fn inv(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {

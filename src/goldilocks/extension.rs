@@ -22,6 +22,12 @@ impl<F: ScalarField> GoldilocksQuadExtWire<F> {
     }
 }
 
+impl<F: ScalarField> Default for GoldilocksQuadExtWire<F> {
+    fn default() -> GoldilocksQuadExtWire<F> {
+        Self([GoldilocksWire::default(); 2])
+    }
+}
+
 // impl<F: ScalarField> TryFrom<&[GoldilocksWire<F>]> for GoldilocksQuadExtWire<F> {
 //     type Error = anyhow::Error;
 
@@ -194,6 +200,17 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         GoldilocksQuadExtWire([c0, c1])
     }
 
+    // TODO: Is there a better way to do this?
+    pub fn div(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+        b: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let binv = self.inv(ctx, b);
+        self.mul(ctx, a, &binv)
+    }
+
     pub fn square(
         &self,
         ctx: &mut Context<F>,
@@ -239,6 +256,7 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         GoldilocksQuadExtWire([c0, c1])
     }
 
+    // TODO: Can I use a custom gate for this?
     pub fn mul_add(
         &self,
         ctx: &mut Context<F>,
@@ -259,6 +277,17 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
     ) -> GoldilocksQuadExtWire<F> {
         let ab = self.mul_no_reduce(ctx, a, b);
         self.add_no_reduce(ctx, &ab, c)
+    }
+
+    pub fn mul_sub(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+        b: &GoldilocksQuadExtWire<F>,
+        c: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let ab = self.mul(ctx, a, b);
+        self.sub(ctx, &ab, c)
     }
 
     // TODO: Is this correct?
@@ -331,6 +360,20 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
             }
         }
         product
+    }
+
+    /// Exponentiate `base` to the power of `2^power_log`.
+    pub fn exp_power_of_2(
+        &self,
+        ctx: &mut Context<F>,
+        base: &GoldilocksQuadExtWire<F>,
+        power_log: usize,
+    ) -> GoldilocksQuadExtWire<F> {
+        let mut curr = *base;
+        for _ in 0..power_log {
+            curr = self.square(ctx, &curr);
+        }
+        curr
     }
 
     pub fn range_check(&self, ctx: &mut Context<F>, a: &GoldilocksQuadExtWire<F>) {
