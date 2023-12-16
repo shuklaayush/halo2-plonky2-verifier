@@ -124,18 +124,13 @@ impl<F: ScalarField> WitnessChip<F> {
         StarkOpeningSetWire {
             local_values: self.load_extensions(ctx, openings_set.local_values.as_slice()),
             next_values: self.load_extensions(ctx, openings_set.next_values.as_slice()),
-            permutation_zs: if let Some(permutation_zs) = &openings_set.permutation_zs {
-                Some(self.load_extensions(ctx, permutation_zs.as_slice()))
-            } else {
-                None
-            },
-            permutation_zs_next: if let Some(permutation_zs_next) =
-                &openings_set.permutation_zs_next
-            {
-                Some(self.load_extensions(ctx, permutation_zs_next.as_slice()))
-            } else {
-                None
-            },
+            permutation_zs: openings_set
+                .permutation_zs
+                .as_ref()
+                .map(|permutation_zs| self.load_extensions(ctx, permutation_zs.as_slice())),
+            permutation_zs_next: openings_set.permutation_zs_next.as_ref().map(
+                |permutation_zs_next| self.load_extensions(ctx, permutation_zs_next.as_slice()),
+            ),
             quotient_polys: self.load_extensions(ctx, openings_set.quotient_polys.as_slice()),
         }
     }
@@ -237,11 +232,10 @@ impl<F: ScalarField> WitnessChip<F> {
         let openings = self.load_openings_set(ctx, &proof.openings);
         // let fri_openings = self.load_fri_openings(ctx, &proof.openings.to_fri_openings());
 
-        let permutation_zs_cap = if let Some(permutation_zs_cap) = &proof.permutation_zs_cap {
-            Some(self.load_cap(ctx, permutation_zs_cap))
-        } else {
-            None
-        };
+        let permutation_zs_cap = proof
+            .permutation_zs_cap
+            .as_ref()
+            .map(|permutation_zs_cap| self.load_cap(ctx, permutation_zs_cap));
 
         let opening_proof = self.load_fri_proof(ctx, &proof.opening_proof);
 

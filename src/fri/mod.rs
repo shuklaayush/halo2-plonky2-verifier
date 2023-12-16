@@ -197,7 +197,7 @@ impl<F: ScalarField> FriChip<F> {
             params.config.cap_height + proof.evals_proofs[0].1.siblings.len()
                 - params.config.rate_bits
         );
-        let subgroup_x = extension_chip.from_base(ctx, &subgroup_x);
+        let subgroup_x = extension_chip.load_base(ctx, &subgroup_x);
         let mut sum = extension_chip.load_zero(ctx);
 
         for (batch, reduced_openings) in instance
@@ -210,7 +210,7 @@ impl<F: ScalarField> FriChip<F> {
                 .iter()
                 // TODO: Blinding
                 .map(|p| {
-                    extension_chip.from_base(
+                    extension_chip.load_base(
                         ctx,
                         &proof.evals_proofs[p.oracle_index].0[p.polynomial_index],
                     )
@@ -339,7 +339,7 @@ impl<F: ScalarField> FriChip<F> {
     ) -> GoldilocksQuadExtWire<F> {
         let extension_chip = self.extension_chip();
 
-        let point = extension_chip.from_base(ctx, point);
+        let point = extension_chip.load_base(ctx, point);
         extension_chip.reduce_with_powers(ctx, poly.0.as_slice(), &point)
     }
 

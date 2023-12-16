@@ -123,14 +123,12 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         GoldilocksQuadExtWire([arr0i, arrli])
     }
 
-    pub fn from_base(
+    pub fn load_base(
         &self,
         ctx: &mut Context<F>,
         a: &GoldilocksWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
-        let zero = self
-            .goldilocks_chip
-            .load_constant(ctx, GoldilocksField::ZERO);
+        let zero = self.goldilocks_chip.load_zero(ctx);
         GoldilocksQuadExtWire([*a, zero])
     }
 

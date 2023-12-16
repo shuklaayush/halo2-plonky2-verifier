@@ -298,7 +298,7 @@ impl<F: ScalarField> StarkChip<F> {
             next_values,
             &public_inputs
                 .iter()
-                .map(|t| extension_chip.from_base(ctx, t))
+                .map(|t| extension_chip.load_base(ctx, t))
                 .collect::<Vec<_>>(),
         );
 

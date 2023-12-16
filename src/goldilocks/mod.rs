@@ -16,6 +16,7 @@ impl<F: ScalarField> From<GoldilocksWire<F>> for BoolWire<F> {
     }
 }
 
+// TODO: Change to From
 impl<F: ScalarField> Into<GoldilocksWire<F>> for BoolWire<F> {
     fn into(self: BoolWire<F>) -> GoldilocksWire<F> {
         GoldilocksWire(self.0)
