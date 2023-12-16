@@ -1,3 +1,4 @@
+use anyhow::{ensure, Result};
 use core::iter::once;
 use halo2_base::{utils::ScalarField, Context};
 use itertools::Itertools;
@@ -117,6 +118,29 @@ impl<F: ScalarField> StarkChip<F> {
         self.fri_chip.extension_chip()
     }
 
+    /// Utility function to check that all permutation data wrapped in `Option`s are `Some` iff
+    /// the Stark uses a permutation argument.
+    fn check_permutation_options<S: Stark<GoldilocksField, 2>>(
+        &self,
+        stark: &S,
+        proof_with_pis: &StarkProofWithPublicInputsWire<F>,
+        challenges: &StarkProofChallengesWire<F>,
+    ) -> Result<()> {
+        let options_is_some = [
+            proof_with_pis.proof.permutation_zs_cap.is_some(),
+            proof_with_pis.proof.openings.permutation_zs.is_some(),
+            proof_with_pis.proof.openings.permutation_zs_next.is_some(),
+            challenges.permutation_challenge_sets.is_some(),
+        ];
+        ensure!(
+            options_is_some
+                .into_iter()
+                .all(|b| b == stark.uses_permutation_args()),
+            "Permutation data doesn't match with Stark configuration."
+        );
+        Ok(())
+    }
+
     /// Computes the FRI instance used to prove this Stark.
     fn fri_instance_info<S: Stark<GoldilocksField, 2>>(
         &self,
@@ -192,7 +216,7 @@ impl<F: ScalarField> StarkChip<F> {
             ctx,
             QuadraticExtension::<GoldilocksField>::primitive_root_of_unity(log_n),
         );
-        let one = extension_chip.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE);
+        let one = extension_chip.load_one(ctx);
         let l_0_deno = extension_chip.mul_sub(ctx, &n, &x, &n);
         let l_last_deno = extension_chip.mul_sub(ctx, &g, &x, &one);
         let l_last_deno = extension_chip.mul(ctx, &n, &l_last_deno);
@@ -246,9 +270,9 @@ impl<F: ScalarField> StarkChip<F> {
     {
         let extension_chip = self.extension_chip();
 
-        // TODO
-        // check_permutation_options(&stark, &proof_with_pis, &challenges).unwrap();
-        let one = extension_chip.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE);
+        self.check_permutation_options(&stark, &proof_with_pis, &challenges)
+            .unwrap();
+        let one = extension_chip.load_one(ctx);
 
         let StarkProofWithPublicInputsWire {
             proof,
