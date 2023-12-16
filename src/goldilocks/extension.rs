@@ -61,6 +61,10 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         GoldilocksQuadExtWire([zero, zero])
     }
 
+    pub fn load_one(&self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
+        self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE)
+    }
+
     pub fn load_constant(
         &self,
         ctx: &mut Context<F>,
@@ -304,7 +308,7 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
 
         // 3. Constrain witnesses
         let product = self.mul(ctx, a, &inverse);
-        let one = self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE);
+        let one = self.load_one(ctx);
         self.assert_equal(ctx, &product, &one);
 
         // Return
@@ -342,14 +346,14 @@ impl<F: ScalarField> GoldilocksQuadExtChip<F> {
         exponent: u64,
     ) -> GoldilocksQuadExtWire<F> {
         match exponent {
-            0 => return self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE),
+            0 => return self.load_one(ctx),
             1 => return *base,
             2 => return self.mul(ctx, base, base),
             // TODO: Do i need a special case for 3?
             _ => (),
         }
         let mut current = *base;
-        let mut product = self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE);
+        let mut product = self.load_one(ctx);
 
         for j in 0..bits_u64(exponent) {
             if j != 0 {

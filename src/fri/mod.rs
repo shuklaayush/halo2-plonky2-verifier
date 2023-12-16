@@ -271,8 +271,7 @@ impl<F: ScalarField> FriChip<F> {
             .collect_vec();
 
         let initial_eval = extension_chip.load_zero(ctx);
-        let initial_partial_prod =
-            extension_chip.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE); // TODO: Create helper
+        let initial_partial_prod = extension_chip.load_one(ctx);
 
         weighted_values
             .iter()

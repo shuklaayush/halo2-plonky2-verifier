@@ -57,7 +57,7 @@ impl<F: ScalarField> MerkleTreeChip<F> {
         let poseidon_chip = self.poseidon_chip();
         let goldilocks_chip = self.goldilocks_chip();
 
-        let one = goldilocks_chip.load_constant(ctx, GoldilocksField::ONE); // TODO: Move somewhere else
+        let one = goldilocks_chip.load_one(ctx);
         let mut node = poseidon_chip.hash_or_noop(ctx, leaf_data);
         for (&sibling, bit) in proof.siblings.iter().zip(leaf_index_bits.iter()) {
             // TODO: Ugly

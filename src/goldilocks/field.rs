@@ -216,7 +216,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
         // TODO: Cache
-        let one = self.load_constant(ctx, GoldilocksField::ONE);
+        let one = self.load_one(ctx);
         self.mul_add(ctx, a, &one, b)
     }
 
@@ -237,8 +237,8 @@ impl<F: ScalarField> GoldilocksChip<F> {
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        let minus_one = self.load_constant(ctx, GoldilocksField::ZERO - GoldilocksField::ONE);
-        self.mul_add(ctx, b, &minus_one, a)
+        let neg_one = self.load_neg_one(ctx);
+        self.mul_add(ctx, b, &neg_one, a)
     }
 
     // TODO: What is this even supposed to do?
@@ -250,8 +250,8 @@ impl<F: ScalarField> GoldilocksChip<F> {
     ) -> GoldilocksWire<F> {
         let gate = self.gate();
 
-        let minus_one = self.load_constant(ctx, GoldilocksField::ZERO - GoldilocksField::ONE);
-        let minus_b = gate.mul(ctx, b.0, minus_one.0);
+        let neg_one = self.load_neg_one(ctx);
+        let minus_b = gate.mul(ctx, b.0, neg_one.0);
         GoldilocksWire(gate.add(ctx, a.0, minus_b))
     }
 
@@ -370,7 +370,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
 
         // 3. Constrain witnesses
         let product = self.mul(ctx, a, &inverse);
-        let one = self.load_constant(ctx, GoldilocksField::ONE);
+        let one = self.load_one(ctx);
         self.assert_equal(ctx, &product, &one);
 
         // Return
@@ -383,7 +383,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
         base: &GoldilocksField,
         exponent_bits: &[BoolWire<F>],
     ) -> GoldilocksWire<F> {
-        let mut product = self.load_constant(ctx, GoldilocksField::ONE);
+        let mut product = self.load_one(ctx);
         for (i, bit) in exponent_bits.iter().enumerate() {
             let pow = 1 << i;
             // If the bit is on, we multiply product by base^pow.
