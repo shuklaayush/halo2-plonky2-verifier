@@ -2,10 +2,17 @@ use core::iter::once;
 use halo2_base::{utils::ScalarField, Context};
 use itertools::Itertools;
 use plonky2::{
-    field::{goldilocks_field::GoldilocksField, types::Field},
+    field::{
+        extension::quadratic::QuadraticExtension, goldilocks_field::GoldilocksField, types::Field,
+    },
     fri::structure::{FriOracleInfo, FriPolynomialInfo},
 };
-use starky::{config::StarkConfig, permutation::PermutationChallengeSet, stark::Stark};
+use starky::{
+    config::StarkConfig,
+    evaluation_frame::{StarkEvaluationFrame, StarkFrame},
+    permutation::PermutationChallengeSet,
+    stark::Stark,
+};
 
 use crate::{
     challenger::ChallengerChip,
@@ -19,6 +26,12 @@ use crate::{
     },
     merkle::MerkleCapWire,
 };
+
+pub struct PermutationCheckDataWire<F: ScalarField> {
+    pub local_zs: Vec<GoldilocksQuadExtWire<F>>,
+    pub next_zs: Vec<GoldilocksQuadExtWire<F>>,
+    pub permutation_challenge_sets: Vec<PermutationChallengeSet<GoldilocksWire<F>>>,
+}
 
 pub struct StarkOpeningSetWire<F: ScalarField> {
     pub local_values: Vec<GoldilocksQuadExtWire<F>>,
@@ -90,6 +103,8 @@ pub struct StarkChip<F: ScalarField> {
     fri_chip: FriChip<F>,
 }
 
+// TODO: Remove all chips and replace with a single CircuitBuilderChip?
+//       To make it consistent with the plonky2 code.
 impl<F: ScalarField> StarkChip<F> {
     pub fn new(challenger_chip: ChallengerChip<F>, fri_chip: FriChip<F>) -> Self {
         Self {
@@ -160,13 +175,44 @@ impl<F: ScalarField> StarkChip<F> {
         FriInstanceInfoWire { oracles, batches }
     }
 
+    fn eval_l_0_and_l_last_circuit(
+        &self,
+        ctx: &mut Context<F>,
+        log_n: usize,
+        x: GoldilocksQuadExtWire<F>,
+        z_x: GoldilocksQuadExtWire<F>,
+    ) -> (GoldilocksQuadExtWire<F>, GoldilocksQuadExtWire<F>) {
+        let extension_chip = self.extension_chip();
+
+        let n = extension_chip.load_constant(
+            ctx,
+            QuadraticExtension::<GoldilocksField>::from_canonical_usize(1 << log_n),
+        );
+        let g = extension_chip.load_constant(
+            ctx,
+            QuadraticExtension::<GoldilocksField>::primitive_root_of_unity(log_n),
+        );
+        let one = extension_chip.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE);
+        let l_0_deno = extension_chip.mul_sub(ctx, &n, &x, &n);
+        let l_last_deno = extension_chip.mul_sub(ctx, &g, &x, &one);
+        let l_last_deno = extension_chip.mul(ctx, &n, &l_last_deno);
+
+        (
+            extension_chip.div(ctx, &z_x, &l_0_deno),
+            extension_chip.div(ctx, &z_x, &l_last_deno),
+        )
+    }
+
     pub fn verify_proof<S: Stark<GoldilocksField, 2>>(
         &mut self, // TODO: Make this immutable
         ctx: &mut Context<F>,
         stark: S,
         proof_with_pis: StarkProofWithPublicInputsWire<F>,
         inner_config: &StarkConfig,
-    ) {
+    ) where
+        [(); S::COLUMNS]:,
+        [(); S::PUBLIC_INPUTS]:,
+    {
         assert_eq!(proof_with_pis.public_inputs.len(), S::PUBLIC_INPUTS);
         let degree_bits = proof_with_pis.proof.recover_degree_bits(inner_config);
         let challenges = self.challenger_chip.get_stark_challenges::<S>(
@@ -194,9 +240,15 @@ impl<F: ScalarField> StarkChip<F> {
         challenges: StarkProofChallengesWire<F>,
         inner_config: &StarkConfig,
         degree_bits: usize,
-    ) {
+    ) where
+        [(); S::COLUMNS]:,
+        [(); S::PUBLIC_INPUTS]:,
+    {
+        let extension_chip = self.extension_chip();
+
+        // TODO
         // check_permutation_options(&stark, &proof_with_pis, &challenges).unwrap();
-        // let one = builder.one_extension();
+        let one = extension_chip.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE);
 
         let StarkProofWithPublicInputsWire {
             proof,
@@ -210,40 +262,48 @@ impl<F: ScalarField> StarkChip<F> {
             quotient_polys,
         } = &proof.openings;
 
-        // TODO: Add these back in
-        // let vars = S::EvaluationFrameTarget::from_values(
-        //     local_values,
-        //     next_values,
-        //     &public_inputs
-        //         .into_iter()
-        //         .map(|t| builder.convert_to_ext(t))
-        //         .collect::<Vec<_>>(),
-        // );
+        // TODO: Can I avoid the generic const expr here?
+        //       Rust doesn't support associated consts in generic types yet.
+        let vars = StarkFrame::<
+            GoldilocksQuadExtWire<F>,
+            GoldilocksQuadExtWire<F>,
+            { S::COLUMNS },
+            { S::PUBLIC_INPUTS },
+        >::from_values(
+            local_values,
+            next_values,
+            &public_inputs
+                .iter()
+                .map(|t| extension_chip.from_base(ctx, t))
+                .collect::<Vec<_>>(),
+        );
 
-        // let zeta_pow_deg = builder.exp_power_of_2_extension(challenges.stark_zeta, degree_bits);
-        // let z_h_zeta = builder.sub_extension(zeta_pow_deg, one);
-        // let (l_0, l_last) =
-        //     eval_l_0_and_l_last_circuit(builder, degree_bits, challenges.stark_zeta, z_h_zeta);
-        // let last = builder
-        //     .constant_extension(F::Extension::primitive_root_of_unity(degree_bits).inverse());
-        // let z_last = builder.sub_extension(challenges.stark_zeta, last);
+        let zeta_pow_deg = extension_chip.exp_power_of_2(ctx, &challenges.stark_zeta, degree_bits);
+        let z_h_zeta = extension_chip.sub(ctx, &zeta_pow_deg, &one);
+        let (l_0, l_last) =
+            self.eval_l_0_and_l_last_circuit(ctx, degree_bits, challenges.stark_zeta, z_h_zeta);
+        let last = extension_chip.load_constant(
+            ctx,
+            QuadraticExtension::<GoldilocksField>::primitive_root_of_unity(degree_bits).inverse(),
+        );
+        let z_last = extension_chip.sub(ctx, &challenges.stark_zeta, &last);
 
+        let permutation_data = stark
+            .uses_permutation_args()
+            .then(|| PermutationCheckDataWire {
+                local_zs: permutation_zs.as_ref().unwrap().clone(),
+                next_zs: permutation_zs_next.as_ref().unwrap().clone(),
+                permutation_challenge_sets: challenges.permutation_challenge_sets.unwrap(),
+            });
+
+        // TODO: Find a way to elegantly add this back in.
         // let mut consumer = RecursiveConstraintConsumer::<F, D>::new(
-        //     builder.zero_extension(),
+        //     extension_chip.load_zero(ctx),
         //     challenges.stark_alphas,
         //     z_last,
         //     l_0,
         //     l_last,
         // );
-
-        // let permutation_data = stark
-        //     .uses_permutation_args()
-        //     .then(|| PermutationCheckDataTarget {
-        //         local_zs: permutation_zs.as_ref().unwrap().clone(),
-        //         next_zs: permutation_zs_next.as_ref().unwrap().clone(),
-        //         permutation_challenge_sets: challenges.permutation_challenge_sets.unwrap(),
-        //     });
-
         // eval_vanishing_poly_circuit::<F, S, D>(
         //     builder,
         //     &stark,
@@ -255,14 +315,13 @@ impl<F: ScalarField> StarkChip<F> {
         // let vanishing_polys_zeta = consumer.accumulators();
 
         // // Check each polynomial identity, of the form `vanishing(x) = Z_H(x) quotient(x)`, at zeta.
-        // let mut scale = ReducingFactorTarget::new(zeta_pow_deg);
         // for (i, chunk) in quotient_polys
         //     .chunks(stark.quotient_degree_factor())
         //     .enumerate()
         // {
-        //     let recombined_quotient = scale.reduce(chunk, builder);
-        //     let computed_vanishing_poly = builder.mul_extension(z_h_zeta, recombined_quotient);
-        //     builder.connect_extension(vanishing_polys_zeta[i], computed_vanishing_poly);
+        //     let recombined_quotient = extension_chip.reduce_with_powers(ctx, chunk, &zeta_pow_deg);
+        //     let computed_vanishing_poly = extension_chip.mul(ctx, &z_h_zeta, &recombined_quotient);
+        //     extension_chip.assert_equal(ctx, vanishing_polys_zeta[i], &computed_vanishing_poly);
         // }
 
         let merkle_caps = once(proof.trace_cap)
