@@ -1,39 +1,58 @@
 use halo2_base::{utils::ScalarField, Context};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
-use self::poseidon::permutation::PoseidonPermutationChip;
 use crate::goldilocks::{
     field::{GoldilocksChip, GoldilocksWire},
     BoolWire,
 };
 
 pub mod poseidon;
-pub mod poseidon_bn254;
+// pub mod poseidon_bn254;
 
 // TODO: Is there a way to avoid the empty trait?
+// TODO: Rename to GenericHashWire?
 pub trait HashWire<F: ScalarField>: Copy + Clone {}
 
-pub trait PermutationChip<F: ScalarField> {
-    type StateWire;
+// TODO: Rename to GenericStateWire?
+pub trait StateWire<F: ScalarField>: Copy + Clone {
+    // type Element: Copy + Clone;
+}
 
-    fn permute(&self, ctx: &mut Context<F>, state: &StateWire) -> StateWire;
+pub trait PermutationChip<F: ScalarField> {
+    type StateWire: StateWire<F>;
+
+    fn permute(&self, ctx: &mut Context<F>, state: &Self::StateWire) -> Self::StateWire;
+
+    fn absorb_goldilocks(
+        &self,
+        ctx: &mut Context<F>,
+        state: &Self::StateWire,
+        input: &[GoldilocksWire<F>],
+    ) -> Self::StateWire;
+
+    // TODO: Return fixed size arrays?
+    fn squeeze(&self, state: &Self::StateWire) -> Vec<GoldilocksWire<F>>;
+
+    fn squeeze_goldilocks(&self, state: &Self::StateWire) -> Vec<GoldilocksWire<F>>;
 }
 
 /// Trait for hash functions.
 pub trait HasherChip<F: ScalarField> {
-    /// Size of `Hash` in number of Goldilocks elements.
-    const HASH_SIZE: usize;
+    /// Maximum number of goldilocks elements that can be uniquely represented as a Hash element.
+    const MAX_GOLDILOCKS: usize;
 
     type Hasher: Hasher<GoldilocksField>;
     // TODO: Why doesn't something like this work?
     // type Hash: Self::Hasher::Hash;
+
+    type PermutationChip: PermutationChip<F>;
 
     /// Hash Output
     type HashWire: HashWire<F>;
 
     fn goldilocks_chip(&self) -> &GoldilocksChip<F>;
 
-    fn permutation_chip(&self) -> &PoseidonPermutationChip<F>;
+    fn permutation_chip(&self) -> &Self::PermutationChip;
 
     fn load_constant(
         &self,
@@ -77,7 +96,7 @@ pub trait HasherChip<F: ScalarField> {
     /// Hash the slice if necessary to reduce its length to ~256 bits. If it already fits, this is a
     /// no-op.
     fn hash_or_noop(&self, ctx: &mut Context<F>, inputs: &[GoldilocksWire<F>]) -> Self::HashWire {
-        if inputs.len() <= Self::HASH_SIZE {
+        if inputs.len() <= Self::MAX_GOLDILOCKS {
             self.load_goldilocks_slice(ctx, inputs)
         } else {
             self.hash_no_pad(ctx, inputs)

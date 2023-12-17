@@ -426,7 +426,6 @@ mod tests {
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
-            let permutation_chip = poseidon_chip.permutation_chip();
             let merkle_chip = MerkleTreeChip::new(poseidon_chip.clone());
 
             let state = PoseidonStateWire(

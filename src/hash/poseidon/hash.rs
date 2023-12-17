@@ -4,12 +4,12 @@ use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::hash::hash_types::{HashOut, NUM_HASH_OUT_ELTS};
-use plonky2::hash::poseidon::{PoseidonHash, SPONGE_RATE, SPONGE_WIDTH};
+use plonky2::hash::poseidon::{PoseidonHash, SPONGE_WIDTH};
 
 use super::permutation::{PoseidonPermutationChip, PoseidonStateWire};
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
-use crate::hash::{HashWire, HasherChip};
+use crate::hash::{HashWire, HasherChip, PermutationChip};
 
 /// Represents a ~256 bit hash output.
 #[derive(Copy, Clone, Debug)]
@@ -51,11 +51,11 @@ impl<F: ScalarField> PoseidonChip<F> {
 }
 
 impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
-    const HASH_SIZE: usize = NUM_HASH_OUT_ELTS;
+    const MAX_GOLDILOCKS: usize = NUM_HASH_OUT_ELTS;
 
     type Hasher = PoseidonHash;
-
     type HashWire = PoseidonHashWire<F>;
+    type PermutationChip = PoseidonPermutationChip<F>;
 
     fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
         self.permutation_chip().goldilocks_chip()
@@ -159,18 +159,14 @@ impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
         );
 
         // Absorb all input chunks.
-        for input_chunk in values.chunks(SPONGE_RATE) {
-            // Overwrite the first r elements with the inputs. This differs from a standard sponge,
-            // where we would xor or add in the inputs. This is a well-known variant, though,
-            // sometimes called "overwrite mode".
-            state.0[..input_chunk.len()].copy_from_slice(input_chunk);
-            state = permutation_chip.permute(ctx, &state);
-        }
+        state = permutation_chip.absorb_goldilocks(ctx, &state, values);
 
         // Squeeze until we have the desired number of outputs.
         // TODO: Fix
         PoseidonHashWire {
-            elements: state.squeeze()[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
+            elements: permutation_chip.squeeze_goldilocks(&state)[..NUM_HASH_OUT_ELTS]
+                .try_into()
+                .unwrap(),
         }
     }
 
@@ -197,7 +193,9 @@ impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
 
         // TODO: Fix
         PoseidonHashWire {
-            elements: state.squeeze()[..NUM_HASH_OUT_ELTS].try_into().unwrap(),
+            elements: permutation_chip.squeeze(&state)[..NUM_HASH_OUT_ELTS]
+                .try_into()
+                .unwrap(),
         }
     }
 }

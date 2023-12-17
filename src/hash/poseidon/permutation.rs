@@ -8,15 +8,13 @@ use plonky2::hash::poseidon::{
 };
 
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
+use crate::hash::{PermutationChip, StateWire};
 
 #[derive(Copy, Clone, Debug)]
 pub struct PoseidonStateWire<F: ScalarField>(pub [GoldilocksWire<F>; SPONGE_WIDTH]);
 
 impl<F: ScalarField> PoseidonStateWire<F> {
     // TODO: Should this be a method on the chip?
-    pub fn squeeze(&self) -> &[GoldilocksWire<F>] {
-        &self.0[..SPONGE_RATE]
-    }
 }
 
 impl<F: ScalarField> From<[GoldilocksWire<F>; SPONGE_WIDTH]> for PoseidonStateWire<F> {
@@ -24,6 +22,8 @@ impl<F: ScalarField> From<[GoldilocksWire<F>; SPONGE_WIDTH]> for PoseidonStateWi
         Self(state)
     }
 }
+
+impl<F: ScalarField> StateWire<F> for PoseidonStateWire<F> {}
 
 #[derive(Debug, Clone)]
 pub struct PoseidonPermutationChip<F: ScalarField> {
@@ -240,9 +240,13 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
             *round_ctr += 1;
         }
     }
+    // TODO: Add `poseidon` function?
+}
 
-    // TODO: Rename to poseidon?
-    pub fn permute(
+impl<F: ScalarField> PermutationChip<F> for PoseidonPermutationChip<F> {
+    type StateWire = PoseidonStateWire<F>;
+
+    fn permute(
         &self,
         ctx: &mut Context<F>,
         state_in: &PoseidonStateWire<F>,
@@ -256,6 +260,31 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
         debug_assert_eq!(round_ctr, N_ROUNDS);
 
         state
+    }
+
+    fn absorb_goldilocks(
+        &self,
+        ctx: &mut Context<F>,
+        state_in: &PoseidonStateWire<F>,
+        input: &[GoldilocksWire<F>],
+    ) -> PoseidonStateWire<F> {
+        let mut state = *state_in;
+        for input_chunk in input.chunks(SPONGE_RATE) {
+            // Overwrite the first r elements with the inputs. This differs from a standard sponge,
+            // where we would xor or add in the inputs. This is a well-known variant, though,
+            // sometimes called "overwrite mode".
+            state.0[..input_chunk.len()].copy_from_slice(input_chunk);
+            state = self.permute(ctx, &state);
+        }
+        state
+    }
+
+    fn squeeze(&self, state: &PoseidonStateWire<F>) -> Vec<GoldilocksWire<F>> {
+        state.0[..SPONGE_RATE].to_vec()
+    }
+
+    fn squeeze_goldilocks(&self, state: &PoseidonStateWire<F>) -> Vec<GoldilocksWire<F>> {
+        self.squeeze(state)
     }
 }
 

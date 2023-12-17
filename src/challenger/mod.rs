@@ -2,7 +2,6 @@ use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::fri::FriConfig;
-use plonky2::hash::poseidon::SPONGE_RATE;
 use starky::config::StarkConfig;
 use starky::permutation::{PermutationChallenge, PermutationChallengeSet};
 use starky::stark::Stark;
@@ -10,21 +9,24 @@ use starky::stark::Stark;
 use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoeffsExtWire};
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
 use crate::goldilocks::field::GoldilocksWire;
-use crate::hash::poseidon::permutation::{PoseidonPermutationChip, PoseidonStateWire};
-use crate::hash::HasherChip;
+use crate::hash::{HasherChip, PermutationChip};
 use crate::merkle::MerkleCapWire;
 use crate::stark::{StarkProofChallengesWire, StarkProofWire};
 
 pub struct ChallengerChip<F: ScalarField, HC: HasherChip<F>> {
     hasher_chip: HC,
-    sponge_state: PoseidonStateWire<F>,
+    // TODO: Ugly
+    sponge_state: <HC::PermutationChip as PermutationChip<F>>::StateWire,
     input_buffer: Vec<GoldilocksWire<F>>,
     output_buffer: Vec<GoldilocksWire<F>>,
 }
 
 impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     // TODO: Initialize state as zero.
-    pub fn new(hasher_chip: HC, state: PoseidonStateWire<F>) -> Self {
+    pub fn new(
+        hasher_chip: HC,
+        state: <HC::PermutationChip as PermutationChip<F>>::StateWire,
+    ) -> Self {
         Self {
             hasher_chip,
             sponge_state: state,
@@ -33,8 +35,8 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
         }
     }
 
-    pub fn permutation_chip(&self) -> &PoseidonPermutationChip<F> {
-        &self.hasher_chip.permutation_chip()
+    pub fn permutation_chip(&self) -> &HC::PermutationChip {
+        self.hasher_chip.permutation_chip()
     }
 
     pub fn observe_element(&mut self, target: &GoldilocksWire<F>) {
@@ -50,6 +52,7 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
         }
     }
 
+    // TODO: What if we want to observe a different hash type than the one used by the challenger's hasher chip?
     pub fn observe_hash(&mut self, ctx: &mut Context<F>, hash: &HC::HashWire) {
         self.observe_elements(self.hasher_chip.to_goldilocks_vec(ctx, hash).as_slice())
     }
@@ -79,10 +82,15 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     pub fn get_challenge(&mut self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
         self.absorb_buffered_inputs(ctx);
 
+        // TODO: This is some weird error.
+        // let permutation_chip = self.permutation_chip();
+        let permutation_chip = self.hasher_chip.permutation_chip();
         if self.output_buffer.is_empty() {
             // Evaluate the permutation to produce `r` new outputs.
-            self.sponge_state = self.permutation_chip().permute(ctx, &self.sponge_state);
-            self.output_buffer = self.sponge_state.squeeze().to_vec();
+            self.sponge_state = permutation_chip.permute(ctx, &self.sponge_state);
+            self.output_buffer = permutation_chip
+                .squeeze_goldilocks(&self.sponge_state)
+                .to_vec();
         }
 
         self.output_buffer
@@ -227,19 +235,21 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     /// Absorb any buffered inputs. After calling this, the input buffer will be empty, and the
     /// output buffer will be full.
     fn absorb_buffered_inputs(&mut self, ctx: &mut Context<F>) {
+        // TODO: This is some weird error.
+        // let permutation_chip = self.permutation_chip();
+        let permutation_chip = self.hasher_chip.permutation_chip();
+
         if self.input_buffer.is_empty() {
             return;
         }
 
-        for input_chunk in self.input_buffer.chunks(SPONGE_RATE) {
-            // Overwrite the first r elements with the inputs. This differs from a standard sponge,
-            // where we would xor or add in the inputs. This is a well-known variant, though,
-            // sometimes called "overwrite mode".
-            self.sponge_state.0[..input_chunk.len()].copy_from_slice(input_chunk);
-            self.sponge_state = self.permutation_chip().permute(ctx, &self.sponge_state);
-        }
+        self.sponge_state =
+            permutation_chip.absorb_goldilocks(ctx, &self.sponge_state, &self.input_buffer);
 
-        self.output_buffer = self.sponge_state.squeeze().to_vec();
+        // TODO: squeeze -> to_goldilocks_vec
+        self.output_buffer = permutation_chip
+            .squeeze_goldilocks(&self.sponge_state)
+            .to_vec();
 
         self.input_buffer.clear();
     }
