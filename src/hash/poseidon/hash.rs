@@ -6,7 +6,6 @@ use plonky2::field::types::Field;
 use plonky2::hash::hash_types::{HashOut, NUM_HASH_OUT_ELTS};
 use plonky2::hash::poseidon::{PoseidonHash, SPONGE_RATE, SPONGE_WIDTH};
 
-
 use super::permutation::{PoseidonPermutationChip, PoseidonStateWire};
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;

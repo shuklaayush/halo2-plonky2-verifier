@@ -1,4 +1,3 @@
-
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;

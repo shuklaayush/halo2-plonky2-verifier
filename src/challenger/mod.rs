@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -12,7 +11,7 @@ use starky::stark::Stark;
 
 use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoeffsExtWire};
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
-use crate::goldilocks::field::{GoldilocksWire};
+use crate::goldilocks::field::GoldilocksWire;
 use crate::hash::poseidon::permutation::{PoseidonPermutationChip, PoseidonStateWire};
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::MerkleCapWire;
