@@ -95,7 +95,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         let mut elements = [zero; NUM_HASH_OUT_ELTS];
         elements[0..elements_in.len()].copy_from_slice(elements_in);
         PoseidonHashWire {
-            elements: elements.try_into().unwrap(),
+            elements: elements.into(),
         }
     }
 

@@ -43,11 +43,11 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
     }
 
     pub fn gate(&self) -> &GateChip<F> {
-        &self.goldilocks_chip.gate()
+        self.goldilocks_chip.gate()
     }
 
     pub fn range(&self) -> &RangeChip<F> {
-        &self.goldilocks_chip.range()
+        self.goldilocks_chip.range()
     }
 
     pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
@@ -223,7 +223,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
 
         self.squeeze(state)
             .iter()
-            .map(|&x| {
+            .flat_map(|&x| {
                 range
                     // TODO: No hardcode
                     .decompose_le(ctx, x, 56, 7)
@@ -231,7 +231,6 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
                     .map(|&x| GoldilocksWire(x))
                     .collect_vec()
             })
-            .flatten()
             .collect_vec()
     }
 }
