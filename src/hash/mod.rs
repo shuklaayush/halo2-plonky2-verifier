@@ -21,6 +21,8 @@ pub trait StateWire<F: BigPrimeField>: Copy + Clone {
 pub trait PermutationChip<F: BigPrimeField> {
     type StateWire: StateWire<F>;
 
+    fn load_zero(&self, ctx: &mut Context<F>) -> Self::StateWire;
+
     fn permute(&self, ctx: &mut Context<F>, state: &Self::StateWire) -> Self::StateWire;
 
     fn absorb_goldilocks(

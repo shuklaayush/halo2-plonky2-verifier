@@ -244,6 +244,12 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
     type StateWire = PoseidonStateWire<F>;
 
+    fn load_zero(&self, ctx: &mut Context<F>) -> PoseidonStateWire<F> {
+        let chip = self.goldilocks_chip();
+        chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH])
+            .into()
+    }
+
     fn permute(
         &self,
         ctx: &mut Context<F>,

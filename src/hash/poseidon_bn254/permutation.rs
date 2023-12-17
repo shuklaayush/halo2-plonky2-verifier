@@ -170,6 +170,10 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
 impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
     type StateWire = PoseidonBN254StateWire<F>;
 
+    fn load_zero(&self, ctx: &mut Context<F>) -> PoseidonBN254StateWire<F> {
+        PoseidonBN254StateWire(ctx.load_constants(&[F::ZERO; WIDTH]).try_into().unwrap())
+    }
+
     fn permute(
         &self,
         ctx: &mut Context<F>,
@@ -226,7 +230,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
             .flat_map(|&x| {
                 range
                     // TODO: No hardcode
-                    .decompose_le(ctx, x, 56, 7)
+                    .decompose_le(ctx, x, 56, 5)
                     .iter()
                     .map(|&x| GoldilocksWire(x))
                     .collect_vec()

@@ -95,9 +95,10 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         hash: &PoseidonBN254HashWire<F>,
     ) -> Vec<GoldilocksWire<F>> {
         let range = self.range();
-        // TODO: No hardcode
+        // TODO: Move to helper
         range
-            .decompose_le(ctx, hash.value, 56, 7)
+            // TODO: No hardcode
+            .decompose_le(ctx, hash.value, 56, 5)
             .iter()
             .map(|&x| GoldilocksWire(x))
             .collect_vec()
