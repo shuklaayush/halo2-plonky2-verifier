@@ -63,7 +63,6 @@ impl<F: ScalarField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
         proof: &MerkleProofWire<F, HC::HashWire>,
     ) {
         let hasher_chip = self.hasher_chip();
-        let goldilocks_chip = self.goldilocks_chip();
 
         let mut node = hasher_chip.hash_or_noop(ctx, leaf_data);
         for (&sibling, bit) in proof.siblings.iter().zip(leaf_index_bits.iter()) {

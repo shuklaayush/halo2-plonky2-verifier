@@ -227,7 +227,7 @@ impl<F: ScalarField, HC: HasherChip<F>> FriChip<F, HC> {
         let extension_chip = self.extension_chip();
 
         let shifted_evaluation_point =
-            extension_chip.scalar_div(ctx, &evaluation_point, &coset_shift);
+            extension_chip.scalar_div(ctx, &evaluation_point, coset_shift);
 
         let domain = GoldilocksField::two_adic_subgroup(arity_bits)
             .iter()
@@ -265,7 +265,7 @@ impl<F: ScalarField, HC: HasherChip<F>> FriChip<F, HC> {
                         extension_chip.mul(ctx, &terms_partial_prod, &term);
 
                     let tmp1 = extension_chip.mul(ctx, &eval, &term);
-                    let tmp2 = extension_chip.mul(ctx, &val, &terms_partial_prod);
+                    let tmp2 = extension_chip.mul(ctx, val, &terms_partial_prod);
                     let next_eval = extension_chip.add(ctx, &tmp1, &tmp2);
 
                     (next_eval, next_terms_partial_prod)

@@ -248,7 +248,7 @@ impl<F: ScalarField, HC: HasherChip<F>> StarkChip<F, HC> {
 
         let StarkProofWithPublicInputsWire {
             proof,
-            public_inputs,
+            public_inputs: _,
         } = proof_with_pis;
         // let StarkOpeningSetWire {
         //     local_values,

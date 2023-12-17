@@ -1,4 +1,4 @@
-use halo2_base::gates::{GateChip, RangeChip};
+
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -37,13 +37,6 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
         Self { goldilocks_chip }
     }
 
-    pub fn gate(&self) -> &GateChip<F> {
-        self.goldilocks_chip.gate()
-    }
-
-    pub fn range(&self) -> &RangeChip<F> {
-        self.goldilocks_chip.range()
-    }
     pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
         &self.goldilocks_chip
     }

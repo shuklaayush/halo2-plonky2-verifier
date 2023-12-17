@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use halo2_base::gates::{GateChip, RangeChip};
+
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -12,7 +12,7 @@ use starky::stark::Stark;
 
 use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoeffsExtWire};
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
-use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
+use crate::goldilocks::field::{GoldilocksWire};
 use crate::hash::poseidon::permutation::{PoseidonPermutationChip, PoseidonStateWire};
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::MerkleCapWire;
@@ -36,18 +36,6 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
             output_buffer: vec![],
             _marker: PhantomData,
         }
-    }
-
-    pub fn gate(&self) -> &GateChip<F> {
-        self.permutation_chip.gate()
-    }
-
-    pub fn range(&self) -> &RangeChip<F> {
-        self.permutation_chip.range()
-    }
-
-    pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
-        self.permutation_chip.goldilocks_chip()
     }
 
     pub fn permutation_chip(&self) -> &PoseidonPermutationChip<F> {
@@ -185,7 +173,7 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
                 num_challenges,
                 stark.permutation_batch_size(),
             );
-            self.observe_cap(&permutation_zs_cap);
+            self.observe_cap(permutation_zs_cap);
             tmp
         });
 

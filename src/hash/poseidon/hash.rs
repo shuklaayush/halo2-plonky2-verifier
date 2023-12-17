@@ -102,7 +102,7 @@ impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
     ) -> PoseidonHashWire<F> {
         let goldilocks_chip = self.goldilocks_chip();
         PoseidonHashWire {
-            elements: goldilocks_chip.select_array(ctx, a.elements, b.elements, &sel),
+            elements: goldilocks_chip.select_array(ctx, a.elements, b.elements, sel),
         }
     }
 
@@ -120,7 +120,7 @@ impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
                     .map(|hash| hash.elements)
                     .collect::<Vec<_>>()
                     .as_slice(),
-                &idx,
+                idx,
             ),
         }
     }
