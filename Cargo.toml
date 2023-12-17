@@ -25,15 +25,19 @@ rand_core = { version = "0.6", default-features = false }
 serde_json = "1.0"
 
 [patch."https://github.com/0xpolygonzero/plonky2"]
-plonky2 = { path = "../plonky2/plonky2" }
-starky = { path = "../plonky2/starky" }
-
-[patch."https://github.com/axiom-crypto/halo2-lib"]
-halo2-base = { path = "../halo2-lib/halo2-base" }
-halo2-ecc = { path = "../halo2-lib/halo2-ecc" }
-
-[patch."https://github.com/succinctlabs/succinctx"]
-plonky2x = { path = "../succinctx/plonky2x/core" }
+# plonky2 = { path = "../plonky2/plonky2" }
+# starky = { path = "../plonky2/starky" }
+plonky2 = { git = "https://github.com/shuklaayush/plonky2", branch = "chore/visibility-public" }
+starky = { git = "https://github.com/shuklaayush/plonky2", branch = "chore/visibility-public" }
 
 [patch."https://github.com/mir-protocol/plonky2"]
-plonky2 = { path = "../plonky2/plonky2" }
+# plonky2 = { path = "../plonky2/plonky2" }
+plonky2 = { git = "https://github.com/shuklaayush/plonky2", branch = "chore/visibility-public" }
+
+[patch."https://github.com/succinctlabs/succinctx"]
+# plonky2x = { path = "../succinctx/plonky2x/core" }
+plonky2x = { git = "https://github.com/shuklaayush/succinctx", branch = "chore/visibility-public" }
+
+# [patch."https://github.com/axiom-crypto/halo2-lib"]
+# halo2-base = { path = "../halo2-lib/halo2-base" }
+# halo2-ecc = { path = "../halo2-lib/halo2-ecc" }
