@@ -1,6 +1,6 @@
 use anyhow::{ensure, Result};
 use core::iter::once;
-use halo2_base::{utils::ScalarField, Context};
+use halo2_base::{utils::BigPrimeField, Context};
 use itertools::Itertools;
 use plonky2::{
     field::{
@@ -29,13 +29,13 @@ use crate::{
     merkle::MerkleCapWire,
 };
 
-pub struct PermutationCheckDataWire<F: ScalarField> {
+pub struct PermutationCheckDataWire<F: BigPrimeField> {
     pub local_zs: Vec<GoldilocksQuadExtWire<F>>,
     pub next_zs: Vec<GoldilocksQuadExtWire<F>>,
     pub permutation_challenge_sets: Vec<PermutationChallengeSet<GoldilocksWire<F>>>,
 }
 
-pub struct StarkOpeningSetWire<F: ScalarField> {
+pub struct StarkOpeningSetWire<F: BigPrimeField> {
     pub local_values: Vec<GoldilocksQuadExtWire<F>>,
     pub next_values: Vec<GoldilocksQuadExtWire<F>>,
     pub permutation_zs: Option<Vec<GoldilocksQuadExtWire<F>>>,
@@ -43,7 +43,7 @@ pub struct StarkOpeningSetWire<F: ScalarField> {
     pub quotient_polys: Vec<GoldilocksQuadExtWire<F>>,
 }
 
-impl<F: ScalarField> StarkOpeningSetWire<F> {
+impl<F: BigPrimeField> StarkOpeningSetWire<F> {
     pub fn to_fri_openings(&self) -> FriOpeningsWire<F> {
         let zeta_batch = FriOpeningBatchWire {
             values: self
@@ -68,7 +68,7 @@ impl<F: ScalarField> StarkOpeningSetWire<F> {
     }
 }
 
-pub struct StarkProofWire<F: ScalarField, HW: HashWire<F>> {
+pub struct StarkProofWire<F: BigPrimeField, HW: HashWire<F>> {
     pub trace_cap: MerkleCapWire<F, HW>,
     pub permutation_zs_cap: Option<MerkleCapWire<F, HW>>,
     pub quotient_polys_cap: MerkleCapWire<F, HW>,
@@ -76,7 +76,7 @@ pub struct StarkProofWire<F: ScalarField, HW: HashWire<F>> {
     pub opening_proof: FriProofWire<F, HW>,
 }
 
-impl<F: ScalarField, HW: HashWire<F>> StarkProofWire<F, HW> {
+impl<F: BigPrimeField, HW: HashWire<F>> StarkProofWire<F, HW> {
     /// Recover the length of the trace from a STARK proof and a STARK config.
     pub fn recover_degree_bits(&self, config: &StarkConfig) -> usize {
         let initial_merkle_proof = &self.opening_proof.query_round_proofs[0]
@@ -88,26 +88,26 @@ impl<F: ScalarField, HW: HashWire<F>> StarkProofWire<F, HW> {
     }
 }
 
-pub struct StarkProofWithPublicInputsWire<F: ScalarField, HW: HashWire<F>> {
+pub struct StarkProofWithPublicInputsWire<F: BigPrimeField, HW: HashWire<F>> {
     pub proof: StarkProofWire<F, HW>,
     pub public_inputs: Vec<GoldilocksWire<F>>,
 }
 
-pub struct StarkProofChallengesWire<F: ScalarField> {
+pub struct StarkProofChallengesWire<F: BigPrimeField> {
     pub permutation_challenge_sets: Option<Vec<PermutationChallengeSet<GoldilocksWire<F>>>>,
     pub stark_alphas: Vec<GoldilocksWire<F>>,
     pub stark_zeta: GoldilocksQuadExtWire<F>,
     pub fri_challenges: FriChallengesWire<F>,
 }
 
-pub struct StarkChip<F: ScalarField, HC: HasherChip<F>> {
+pub struct StarkChip<F: BigPrimeField, HC: HasherChip<F>> {
     challenger_chip: ChallengerChip<F, HC>,
     fri_chip: FriChip<F, HC>,
 }
 
 // TODO: Remove all chips and replace with a single CircuitBuilderChip?
 //       To make it consistent with the plonky2 code.
-impl<F: ScalarField, HC: HasherChip<F>> StarkChip<F, HC> {
+impl<F: BigPrimeField, HC: HasherChip<F>> StarkChip<F, HC> {
     pub fn new(challenger_chip: ChallengerChip<F, HC>, fri_chip: FriChip<F, HC>) -> Self {
         Self {
             challenger_chip,

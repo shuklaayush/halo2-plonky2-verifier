@@ -1,4 +1,4 @@
-use halo2_base::utils::ScalarField;
+use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::fri::FriConfig;
@@ -13,7 +13,7 @@ use crate::hash::{HasherChip, PermutationChip};
 use crate::merkle::MerkleCapWire;
 use crate::stark::{StarkProofChallengesWire, StarkProofWire};
 
-pub struct ChallengerChip<F: ScalarField, HC: HasherChip<F>> {
+pub struct ChallengerChip<F: BigPrimeField, HC: HasherChip<F>> {
     hasher_chip: HC,
     // TODO: Ugly
     sponge_state: <HC::PermutationChip as PermutationChip<F>>::StateWire,
@@ -21,7 +21,7 @@ pub struct ChallengerChip<F: ScalarField, HC: HasherChip<F>> {
     output_buffer: Vec<GoldilocksWire<F>>,
 }
 
-impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
+impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     // TODO: Initialize state as zero.
     pub fn new(
         hasher_chip: HC,

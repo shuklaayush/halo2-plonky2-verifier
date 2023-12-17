@@ -1,4 +1,4 @@
-use halo2_base::utils::ScalarField;
+use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 use plonky2::field::extension::quadratic::QuadraticExtension;
 use plonky2::field::extension::Extendable;
@@ -11,9 +11,9 @@ use super::field::{GoldilocksChip, GoldilocksWire};
 
 // TODO: Use const generics for arbitrary GoldilocksExtWire
 #[derive(Copy, Clone, Debug)]
-pub struct GoldilocksQuadExtWire<F: ScalarField>(pub [GoldilocksWire<F>; 2]);
+pub struct GoldilocksQuadExtWire<F: BigPrimeField>(pub [GoldilocksWire<F>; 2]);
 
-impl<F: ScalarField> GoldilocksQuadExtWire<F> {
+impl<F: BigPrimeField> GoldilocksQuadExtWire<F> {
     pub fn value(&self) -> QuadraticExtension<GoldilocksField> {
         let val1 = self.0[0].value();
         let val2 = self.0[1].value();
@@ -21,13 +21,13 @@ impl<F: ScalarField> GoldilocksQuadExtWire<F> {
     }
 }
 
-impl<F: ScalarField> Default for GoldilocksQuadExtWire<F> {
+impl<F: BigPrimeField> Default for GoldilocksQuadExtWire<F> {
     fn default() -> GoldilocksQuadExtWire<F> {
         Self([GoldilocksWire::default(); 2])
     }
 }
 
-// impl<F: ScalarField> TryFrom<&[GoldilocksWire<F>]> for GoldilocksQuadExtWire<F> {
+// impl<F: BigPrimeField> TryFrom<&[GoldilocksWire<F>]> for GoldilocksQuadExtWire<F> {
 //     type Error = anyhow::Error;
 
 //     fn try_from(elements: &[GoldilocksWire<F>]) -> Result<Self, Self::Error> {
@@ -38,11 +38,11 @@ impl<F: ScalarField> Default for GoldilocksQuadExtWire<F> {
 
 // TODO: Reference and lifetimes? Should GoldilocksExtensionChip own GoldilocksChip?
 #[derive(Debug, Clone)]
-pub struct GoldilocksQuadExtChip<F: ScalarField> {
+pub struct GoldilocksQuadExtChip<F: BigPrimeField> {
     pub goldilocks_chip: GoldilocksChip<F>,
 }
 
-impl<F: ScalarField> GoldilocksQuadExtChip<F> {
+impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>) -> Self {
         Self { goldilocks_chip }
     }

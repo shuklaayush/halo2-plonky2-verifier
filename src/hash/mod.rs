@@ -1,4 +1,4 @@
-use halo2_base::{utils::ScalarField, Context};
+use halo2_base::{utils::BigPrimeField, Context};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
 use crate::goldilocks::{
@@ -11,14 +11,14 @@ pub mod poseidon;
 
 // TODO: Is there a way to avoid the empty trait?
 // TODO: Rename to GenericHashWire?
-pub trait HashWire<F: ScalarField>: Copy + Clone {}
+pub trait HashWire<F: BigPrimeField>: Copy + Clone {}
 
 // TODO: Rename to GenericStateWire?
-pub trait StateWire<F: ScalarField>: Copy + Clone {
-    // type Element: Copy + Clone;
+pub trait StateWire<F: BigPrimeField>: Copy + Clone {
+    type Item: Copy + Clone;
 }
 
-pub trait PermutationChip<F: ScalarField> {
+pub trait PermutationChip<F: BigPrimeField> {
     type StateWire: StateWire<F>;
 
     fn permute(&self, ctx: &mut Context<F>, state: &Self::StateWire) -> Self::StateWire;
@@ -31,13 +31,13 @@ pub trait PermutationChip<F: ScalarField> {
     ) -> Self::StateWire;
 
     // TODO: Return fixed size arrays?
-    fn squeeze(&self, state: &Self::StateWire) -> Vec<GoldilocksWire<F>>;
+    fn squeeze(&self, state: &Self::StateWire) -> Vec<<Self::StateWire as StateWire<F>>::Item>;
 
     fn squeeze_goldilocks(&self, state: &Self::StateWire) -> Vec<GoldilocksWire<F>>;
 }
 
 /// Trait for hash functions.
-pub trait HasherChip<F: ScalarField> {
+pub trait HasherChip<F: BigPrimeField> {
     /// Maximum number of goldilocks elements that can be uniquely represented as a Hash element.
     const MAX_GOLDILOCKS: usize;
 

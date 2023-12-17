@@ -1,4 +1,4 @@
-use halo2_base::utils::ScalarField;
+use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -13,19 +13,19 @@ use crate::hash::{HashWire, HasherChip, PermutationChip};
 
 /// Represents a ~256 bit hash output.
 #[derive(Copy, Clone, Debug)]
-pub struct PoseidonHashWire<F: ScalarField> {
+pub struct PoseidonHashWire<F: BigPrimeField> {
     pub elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS],
 }
 
-impl<F: ScalarField> HashWire<F> for PoseidonHashWire<F> {}
+impl<F: BigPrimeField> HashWire<F> for PoseidonHashWire<F> {}
 
-impl<F: ScalarField> From<[GoldilocksWire<F>; NUM_HASH_OUT_ELTS]> for PoseidonHashWire<F> {
+impl<F: BigPrimeField> From<[GoldilocksWire<F>; NUM_HASH_OUT_ELTS]> for PoseidonHashWire<F> {
     fn from(elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS]) -> Self {
         Self { elements }
     }
 }
 
-// impl<F: ScalarField> TryFrom<&[GoldilocksWire<F>]> for PoseidonHashWire<F> {
+// impl<F: BigPrimeField> TryFrom<&[GoldilocksWire<F>]> for PoseidonHashWire<F> {
 //     type Error = anyhow::Error;
 
 //     fn try_from(elements: &[GoldilocksWire<F>]) -> Result<Self, Self::Error> {
@@ -35,7 +35,7 @@ impl<F: ScalarField> From<[GoldilocksWire<F>; NUM_HASH_OUT_ELTS]> for PoseidonHa
 // }
 
 #[derive(Debug, Clone)]
-pub struct PoseidonChip<F: ScalarField> {
+pub struct PoseidonChip<F: BigPrimeField> {
     pub permutation_chip: PoseidonPermutationChip<F>,
 }
 
@@ -43,14 +43,14 @@ pub struct PoseidonChip<F: ScalarField> {
 //       Change back to Self::f(ctx, chip, state) instead of self.f(ctx, state)?
 //       assert_equal for hash
 //       Generic HasherChip trait?
-impl<F: ScalarField> PoseidonChip<F> {
+impl<F: BigPrimeField> PoseidonChip<F> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>) -> Self {
         let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip);
         Self { permutation_chip }
     }
 }
 
-impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
+impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
     const MAX_GOLDILOCKS: usize = NUM_HASH_OUT_ELTS;
 
     type Hasher = PoseidonHash;

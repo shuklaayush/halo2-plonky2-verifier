@@ -1,5 +1,5 @@
 use halo2_base::gates::{RangeChip, RangeInstructions};
-use halo2_base::utils::ScalarField;
+use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -15,31 +15,31 @@ use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::{MerkleCapWire, MerkleProofWire, MerkleTreeChip};
 
-pub struct FriInstanceInfoWire<F: ScalarField> {
+pub struct FriInstanceInfoWire<F: BigPrimeField> {
     pub oracles: Vec<FriOracleInfo>,
     pub batches: Vec<FriBatchInfoWire<F>>,
 }
 
-pub struct FriBatchInfoWire<F: ScalarField> {
+pub struct FriBatchInfoWire<F: BigPrimeField> {
     pub point: GoldilocksQuadExtWire<F>,
     pub polynomials: Vec<FriPolynomialInfo>,
 }
 
 #[derive(Debug)]
-pub struct FriOpeningsWire<F: ScalarField> {
+pub struct FriOpeningsWire<F: BigPrimeField> {
     pub batches: Vec<FriOpeningBatchWire<F>>,
 }
 
 #[derive(Debug)]
-pub struct FriOpeningBatchWire<F: ScalarField> {
+pub struct FriOpeningBatchWire<F: BigPrimeField> {
     pub values: Vec<GoldilocksQuadExtWire<F>>,
 }
 
-pub struct PrecomputedReducedOpeningsWire<F: ScalarField> {
+pub struct PrecomputedReducedOpeningsWire<F: BigPrimeField> {
     reduced_openings_at_point: Vec<GoldilocksQuadExtWire<F>>,
 }
 
-impl<F: ScalarField> PrecomputedReducedOpeningsWire<F> {
+impl<F: BigPrimeField> PrecomputedReducedOpeningsWire<F> {
     fn from_os_and_alpha(
         ctx: &mut Context<F>,
         extension_chip: &GoldilocksQuadExtChip<F>,
@@ -57,16 +57,16 @@ impl<F: ScalarField> PrecomputedReducedOpeningsWire<F> {
     }
 }
 
-pub struct FriChallengesWire<F: ScalarField> {
+pub struct FriChallengesWire<F: BigPrimeField> {
     pub fri_alpha: GoldilocksQuadExtWire<F>,
     pub fri_betas: Vec<GoldilocksQuadExtWire<F>>,
     pub fri_pow_response: GoldilocksWire<F>,
     pub fri_query_indices: Vec<GoldilocksWire<F>>,
 }
 
-pub struct PolynomialCoeffsExtWire<F: ScalarField>(pub Vec<GoldilocksQuadExtWire<F>>);
+pub struct PolynomialCoeffsExtWire<F: BigPrimeField>(pub Vec<GoldilocksQuadExtWire<F>>);
 
-pub struct FriProofWire<F: ScalarField, HW: HashWire<F>> {
+pub struct FriProofWire<F: BigPrimeField, HW: HashWire<F>> {
     pub commit_phase_merkle_caps: Vec<MerkleCapWire<F, HW>>,
     pub query_round_proofs: Vec<FriQueryRoundWire<F, HW>>,
     pub final_poly: PolynomialCoeffsExtWire<F>,
@@ -74,28 +74,28 @@ pub struct FriProofWire<F: ScalarField, HW: HashWire<F>> {
 }
 
 #[derive(Debug)]
-pub struct FriInitialTreeProofWire<F: ScalarField, HW: HashWire<F>> {
+pub struct FriInitialTreeProofWire<F: BigPrimeField, HW: HashWire<F>> {
     pub evals_proofs: Vec<(Vec<GoldilocksWire<F>>, MerkleProofWire<F, HW>)>,
 }
 
 #[derive(Debug)]
-pub struct FriQueryStepWire<F: ScalarField, HW: HashWire<F>> {
+pub struct FriQueryStepWire<F: BigPrimeField, HW: HashWire<F>> {
     pub evals: Vec<GoldilocksQuadExtWire<F>>,
     pub merkle_proof: MerkleProofWire<F, HW>,
 }
 
 #[derive(Debug)]
-pub struct FriQueryRoundWire<F: ScalarField, HW: HashWire<F>> {
+pub struct FriQueryRoundWire<F: BigPrimeField, HW: HashWire<F>> {
     pub initial_trees_proof: FriInitialTreeProofWire<F, HW>,
     pub steps: Vec<FriQueryStepWire<F, HW>>,
 }
 
-pub struct FriChip<F: ScalarField, HC: HasherChip<F>> {
+pub struct FriChip<F: BigPrimeField, HC: HasherChip<F>> {
     extension_chip: GoldilocksQuadExtChip<F>,
     merkle_tree_chip: MerkleTreeChip<F, HC>,
 }
 
-impl<F: ScalarField, HC: HasherChip<F>> FriChip<F, HC> {
+impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
     pub fn new(
         extension_chip: GoldilocksQuadExtChip<F>,
         merkle_tree_chip: MerkleTreeChip<F, HC>,

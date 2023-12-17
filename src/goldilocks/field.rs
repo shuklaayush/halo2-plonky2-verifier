@@ -1,7 +1,7 @@
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::gates::{GateInstructions, RangeInstructions};
 use halo2_base::halo2_proofs::plonk::Assigned;
-use halo2_base::utils::{biguint_to_fe, fe_to_biguint, ScalarField};
+use halo2_base::utils::{biguint_to_fe, fe_to_biguint, BigPrimeField};
 use halo2_base::{AssignedValue, Context};
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -12,10 +12,10 @@ use super::BoolWire;
 // TODO: Use SafeUint64?
 //       https://github.com/axiom-crypto/halo2-lib/blob/400122a6cf074783d0e5ee904a711e75ddfff3d4/halo2-base/src/safe_types/mod.rs#L109-L109
 #[derive(Copy, Clone, Debug)]
-pub struct GoldilocksWire<F: ScalarField>(pub AssignedValue<F>);
+pub struct GoldilocksWire<F: BigPrimeField>(pub AssignedValue<F>);
 
 // TODO: Is this correct?
-impl<F: ScalarField> Default for GoldilocksWire<F> {
+impl<F: BigPrimeField> Default for GoldilocksWire<F> {
     fn default() -> GoldilocksWire<F> {
         Self(AssignedValue {
             value: Assigned::Zero,
@@ -24,7 +24,7 @@ impl<F: ScalarField> Default for GoldilocksWire<F> {
     }
 }
 
-impl<F: ScalarField> GoldilocksWire<F> {
+impl<F: BigPrimeField> GoldilocksWire<F> {
     pub fn value_raw(&self) -> &F {
         self.0.value()
     }
@@ -37,7 +37,7 @@ impl<F: ScalarField> GoldilocksWire<F> {
 }
 
 // TODO: Use this to simplify code
-// impl<F: ScalarField> Into<QuantumCell<F>> for GoldilocksWire<F> {
+// impl<F: BigPrimeField> Into<QuantumCell<F>> for GoldilocksWire<F> {
 //     fn into(self) -> QuantumCell<F> {
 //         self.0.into()
 //     }
@@ -47,7 +47,7 @@ impl<F: ScalarField> GoldilocksWire<F> {
 //       Add, mul as trait implementations for GoldilocksWire instead of GoldilocksChip?
 //       Generic FieldChip trait?
 #[derive(Debug, Clone)]
-pub struct GoldilocksChip<F: ScalarField> {
+pub struct GoldilocksChip<F: BigPrimeField> {
     pub range: RangeChip<F>, // TODO: Change to reference and add lifetime?
 }
 
@@ -55,7 +55,7 @@ pub struct GoldilocksChip<F: ScalarField> {
 //       Change load_* syntax to just *. `load_zero` -> `zero`, `load_constant` -> `constant`
 //       Pass values instead of references since they are cheap to copy?
 //       Assert somewhere that F ~ 256 bits
-impl<F: ScalarField> GoldilocksChip<F> {
+impl<F: BigPrimeField> GoldilocksChip<F> {
     pub fn new(range: RangeChip<F>) -> Self {
         Self { range }
     }

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use halo2_base::utils::ScalarField;
+use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 
 use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
@@ -8,21 +8,21 @@ use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 
 #[derive(Clone, Debug)]
-pub struct MerkleCapWire<F: ScalarField, HW: HashWire<F>>(pub Vec<HW>, PhantomData<F>);
+pub struct MerkleCapWire<F: BigPrimeField, HW: HashWire<F>>(pub Vec<HW>, PhantomData<F>);
 
-impl<F: ScalarField, HW: HashWire<F>> MerkleCapWire<F, HW> {
+impl<F: BigPrimeField, HW: HashWire<F>> MerkleCapWire<F, HW> {
     pub fn new(hashes: Vec<HW>) -> Self {
         Self(hashes, PhantomData)
     }
 }
 
 #[derive(Debug)]
-pub struct MerkleProofWire<F: ScalarField, HW: HashWire<F>> {
+pub struct MerkleProofWire<F: BigPrimeField, HW: HashWire<F>> {
     pub siblings: Vec<HW>,
     _marker: PhantomData<F>,
 }
 
-impl<F: ScalarField, HW: HashWire<F>> MerkleProofWire<F, HW> {
+impl<F: BigPrimeField, HW: HashWire<F>> MerkleProofWire<F, HW> {
     pub fn new(hashes: Vec<HW>) -> Self {
         Self {
             siblings: hashes,
@@ -31,13 +31,13 @@ impl<F: ScalarField, HW: HashWire<F>> MerkleProofWire<F, HW> {
     }
 }
 
-pub struct MerkleTreeChip<F: ScalarField, HC: HasherChip<F>> {
+pub struct MerkleTreeChip<F: BigPrimeField, HC: HasherChip<F>> {
     hasher_chip: HC,
     _marker: PhantomData<F>,
 }
 
 // TODO: Generalize for field extensions
-impl<F: ScalarField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
+impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
     pub fn new(hasher_chip: HC) -> Self {
         Self {
             hasher_chip,

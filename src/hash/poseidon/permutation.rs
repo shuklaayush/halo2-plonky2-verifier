@@ -1,4 +1,4 @@
-use halo2_base::utils::ScalarField;
+use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
@@ -11,27 +11,25 @@ use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::hash::{PermutationChip, StateWire};
 
 #[derive(Copy, Clone, Debug)]
-pub struct PoseidonStateWire<F: ScalarField>(pub [GoldilocksWire<F>; SPONGE_WIDTH]);
+pub struct PoseidonStateWire<F: BigPrimeField>(pub [GoldilocksWire<F>; SPONGE_WIDTH]);
 
-impl<F: ScalarField> PoseidonStateWire<F> {
-    // TODO: Should this be a method on the chip?
-}
-
-impl<F: ScalarField> From<[GoldilocksWire<F>; SPONGE_WIDTH]> for PoseidonStateWire<F> {
+impl<F: BigPrimeField> From<[GoldilocksWire<F>; SPONGE_WIDTH]> for PoseidonStateWire<F> {
     fn from(state: [GoldilocksWire<F>; SPONGE_WIDTH]) -> Self {
         Self(state)
     }
 }
 
-impl<F: ScalarField> StateWire<F> for PoseidonStateWire<F> {}
+impl<F: BigPrimeField> StateWire<F> for PoseidonStateWire<F> {
+    type Item = GoldilocksWire<F>;
+}
 
 #[derive(Debug, Clone)]
-pub struct PoseidonPermutationChip<F: ScalarField> {
+pub struct PoseidonPermutationChip<F: BigPrimeField> {
     goldilocks_chip: GoldilocksChip<F>,
 }
 
 // TODO: Use custom poseidon gate and mds gate?
-impl<F: ScalarField> PoseidonPermutationChip<F> {
+impl<F: BigPrimeField> PoseidonPermutationChip<F> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>) -> Self {
         Self { goldilocks_chip }
     }
@@ -243,7 +241,7 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
     // TODO: Add `poseidon` function?
 }
 
-impl<F: ScalarField> PermutationChip<F> for PoseidonPermutationChip<F> {
+impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
     type StateWire = PoseidonStateWire<F>;
 
     fn permute(

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use halo2_base::{utils::ScalarField, Context};
+use halo2_base::{utils::BigPrimeField, Context};
 use itertools::Itertools;
 use plonky2::{
     field::{
@@ -29,12 +29,12 @@ use crate::{
 
 // TODO: Follow plonky2 pattern of `load_witness` (add target) and `assert_equal` (set target)
 //       instead of `load_constant`?
-pub struct WitnessChip<F: ScalarField, HC: HasherChip<F>> {
+pub struct WitnessChip<F: BigPrimeField, HC: HasherChip<F>> {
     hasher_chip: HC,
     _marker: PhantomData<F>,
 }
 
-impl<F: ScalarField, HC: HasherChip<F>> WitnessChip<F, HC> {
+impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
     pub fn new(hasher_chip: HC) -> Self {
         Self {
             hasher_chip,
