@@ -1,18 +1,22 @@
 use halo2_base::{utils::ScalarField, Context};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
+use self::poseidon::permutation::PoseidonPermutationChip;
 use crate::goldilocks::{
     field::{GoldilocksChip, GoldilocksWire},
     BoolWire,
 };
 
 pub mod poseidon;
-// pub mod poseidon_bn254;
+pub mod poseidon_bn254;
 
-pub trait HashWire<F: ScalarField>: Copy + Clone {
-    fn from_partial(elements_in: &[GoldilocksWire<F>], zero: GoldilocksWire<F>) -> Self;
+// TODO: Is there a way to avoid the empty trait?
+pub trait HashWire<F: ScalarField>: Copy + Clone {}
 
-    fn to_elements(&self) -> Vec<GoldilocksWire<F>>;
+pub trait PermutationChip<F: ScalarField> {
+    type StateWire;
+
+    fn permute(&self, ctx: &mut Context<F>, state: &StateWire) -> StateWire;
 }
 
 /// Trait for hash functions.
@@ -29,11 +33,25 @@ pub trait HasherChip<F: ScalarField> {
 
     fn goldilocks_chip(&self) -> &GoldilocksChip<F>;
 
+    fn permutation_chip(&self) -> &PoseidonPermutationChip<F>;
+
     fn load_constant(
         &self,
         ctx: &mut Context<F>,
         constant: <Self::Hasher as Hasher<GoldilocksField>>::Hash,
     ) -> Self::HashWire;
+
+    fn load_goldilocks_slice(
+        &self,
+        ctx: &mut Context<F>,
+        elements: &[GoldilocksWire<F>],
+    ) -> Self::HashWire;
+
+    fn to_goldilocks_vec(
+        &self,
+        ctx: &mut Context<F>,
+        hash: &Self::HashWire,
+    ) -> Vec<GoldilocksWire<F>>;
 
     fn select(
         &self,
@@ -60,8 +78,7 @@ pub trait HasherChip<F: ScalarField> {
     /// no-op.
     fn hash_or_noop(&self, ctx: &mut Context<F>, inputs: &[GoldilocksWire<F>]) -> Self::HashWire {
         if inputs.len() <= Self::HASH_SIZE {
-            let zero = self.goldilocks_chip().load_zero(ctx);
-            Self::HashWire::from_partial(inputs, zero)
+            self.load_goldilocks_slice(ctx, inputs)
         } else {
             self.hash_no_pad(ctx, inputs)
         }

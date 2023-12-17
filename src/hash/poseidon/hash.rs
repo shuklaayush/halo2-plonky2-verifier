@@ -17,17 +17,7 @@ pub struct PoseidonHashWire<F: ScalarField> {
     pub elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS],
 }
 
-impl<F: ScalarField> HashWire<F> for PoseidonHashWire<F> {
-    fn from_partial(elements_in: &[GoldilocksWire<F>], zero: GoldilocksWire<F>) -> Self {
-        let mut elements = [zero; NUM_HASH_OUT_ELTS];
-        elements[0..elements_in.len()].copy_from_slice(elements_in);
-        Self { elements }
-    }
-
-    fn to_elements(&self) -> Vec<GoldilocksWire<F>> {
-        self.elements.into()
-    }
-}
+impl<F: ScalarField> HashWire<F> for PoseidonHashWire<F> {}
 
 impl<F: ScalarField> From<[GoldilocksWire<F>; NUM_HASH_OUT_ELTS]> for PoseidonHashWire<F> {
     fn from(elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS]) -> Self {
@@ -58,10 +48,6 @@ impl<F: ScalarField> PoseidonChip<F> {
         let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip);
         Self { permutation_chip }
     }
-
-    pub fn permutation_chip(&self) -> &PoseidonPermutationChip<F> {
-        &self.permutation_chip
-    }
 }
 
 impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
@@ -73,6 +59,10 @@ impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
 
     fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
         self.permutation_chip().goldilocks_chip()
+    }
+
+    fn permutation_chip(&self) -> &PoseidonPermutationChip<F> {
+        &self.permutation_chip
     }
 
     fn load_constant(
@@ -90,6 +80,31 @@ impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
                 .try_into()
                 .unwrap(),
         }
+    }
+
+    fn load_goldilocks_slice(
+        &self,
+        ctx: &mut Context<F>,
+        elements_in: &[GoldilocksWire<F>],
+    ) -> PoseidonHashWire<F> {
+        debug_assert!(elements_in.len() <= NUM_HASH_OUT_ELTS);
+        // TODO: No need to load extra zeros here if they aren't used
+        //       Is this way of initializing cells correct? Array will have
+        //       multiple zeros referring to the same cell
+        let zero = GoldilocksWire(ctx.load_zero());
+        let mut elements = [zero; NUM_HASH_OUT_ELTS];
+        elements[0..elements_in.len()].copy_from_slice(elements_in);
+        PoseidonHashWire {
+            elements: elements.try_into().unwrap(),
+        }
+    }
+
+    fn to_goldilocks_vec(
+        &self,
+        _ctx: &mut Context<F>,
+        hash: &PoseidonHashWire<F>,
+    ) -> Vec<GoldilocksWire<F>> {
+        hash.elements.to_vec()
     }
 
     fn select(
@@ -169,6 +184,7 @@ impl<F: ScalarField> HasherChip<F> for PoseidonChip<F> {
         let gl_chip = self.goldilocks_chip();
         let permutation_chip = self.permutation_chip();
 
+        // TODO: Remove extra cell assignments
         let mut state = PoseidonStateWire(
             gl_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]),
         );

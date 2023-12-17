@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use halo2_base::utils::ScalarField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -13,32 +11,30 @@ use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoe
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
 use crate::goldilocks::field::GoldilocksWire;
 use crate::hash::poseidon::permutation::{PoseidonPermutationChip, PoseidonStateWire};
-use crate::hash::{HashWire, HasherChip};
+use crate::hash::HasherChip;
 use crate::merkle::MerkleCapWire;
 use crate::stark::{StarkProofChallengesWire, StarkProofWire};
 
 pub struct ChallengerChip<F: ScalarField, HC: HasherChip<F>> {
-    permutation_chip: PoseidonPermutationChip<F>,
+    hasher_chip: HC,
     sponge_state: PoseidonStateWire<F>,
     input_buffer: Vec<GoldilocksWire<F>>,
     output_buffer: Vec<GoldilocksWire<F>>,
-    _marker: PhantomData<HC>,
 }
 
 impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     // TODO: Initialize state as zero.
-    pub fn new(permutation_chip: PoseidonPermutationChip<F>, state: PoseidonStateWire<F>) -> Self {
+    pub fn new(hasher_chip: HC, state: PoseidonStateWire<F>) -> Self {
         Self {
-            permutation_chip,
+            hasher_chip,
             sponge_state: state,
             input_buffer: vec![],
             output_buffer: vec![],
-            _marker: PhantomData,
         }
     }
 
     pub fn permutation_chip(&self) -> &PoseidonPermutationChip<F> {
-        &self.permutation_chip
+        &self.hasher_chip.permutation_chip()
     }
 
     pub fn observe_element(&mut self, target: &GoldilocksWire<F>) {
@@ -54,13 +50,13 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
         }
     }
 
-    pub fn observe_hash(&mut self, hash: &HC::HashWire) {
-        self.observe_elements(&hash.to_elements())
+    pub fn observe_hash(&mut self, ctx: &mut Context<F>, hash: &HC::HashWire) {
+        self.observe_elements(self.hasher_chip.to_goldilocks_vec(ctx, hash).as_slice())
     }
 
-    pub fn observe_cap(&mut self, cap: &MerkleCapWire<F, HC::HashWire>) {
+    pub fn observe_cap(&mut self, ctx: &mut Context<F>, cap: &MerkleCapWire<F, HC::HashWire>) {
         for hash in &cap.0 {
-            self.observe_hash(hash)
+            self.observe_hash(ctx, hash)
         }
     }
 
@@ -85,7 +81,7 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
 
         if self.output_buffer.is_empty() {
             // Evaluate the permutation to produce `r` new outputs.
-            self.sponge_state = self.permutation_chip.permute(ctx, &self.sponge_state);
+            self.sponge_state = self.permutation_chip().permute(ctx, &self.sponge_state);
             self.output_buffer = self.sponge_state.squeeze().to_vec();
         }
 
@@ -119,7 +115,7 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
         let fri_betas = commit_phase_merkle_caps
             .iter()
             .map(|cap| {
-                self.observe_cap(cap);
+                self.observe_cap(ctx, cap);
                 self.get_extension_challenge(ctx)
             })
             .collect();
@@ -164,7 +160,7 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
 
         let num_challenges = config.num_challenges;
 
-        self.observe_cap(trace_cap);
+        self.observe_cap(ctx, trace_cap);
 
         let permutation_challenge_sets = permutation_zs_cap.as_ref().map(|permutation_zs_cap| {
             let tmp = self.get_n_permutation_challenge_sets(
@@ -172,13 +168,13 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
                 num_challenges,
                 stark.permutation_batch_size(),
             );
-            self.observe_cap(permutation_zs_cap);
+            self.observe_cap(ctx, permutation_zs_cap);
             tmp
         });
 
         let stark_alphas = self.get_n_challenges(ctx, num_challenges);
 
-        self.observe_cap(quotient_polys_cap);
+        self.observe_cap(ctx, quotient_polys_cap);
         let stark_zeta = self.get_extension_challenge(ctx);
 
         self.observe_openings(&openings.to_fri_openings());
@@ -240,7 +236,7 @@ impl<F: ScalarField, HC: HasherChip<F>> ChallengerChip<F, HC> {
             // where we would xor or add in the inputs. This is a well-known variant, though,
             // sometimes called "overwrite mode".
             self.sponge_state.0[..input_chunk.len()].copy_from_slice(input_chunk);
-            self.sponge_state = self.permutation_chip.permute(ctx, &self.sponge_state);
+            self.sponge_state = self.permutation_chip().permute(ctx, &self.sponge_state);
         }
 
         self.output_buffer = self.sponge_state.squeeze().to_vec();

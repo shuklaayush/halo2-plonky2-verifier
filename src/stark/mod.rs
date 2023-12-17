@@ -432,7 +432,7 @@ mod tests {
             let state = PoseidonStateWire(
                 goldilocks_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]),
             );
-            let challenger_chip = ChallengerChip::new(permutation_chip.clone(), state);
+            let challenger_chip = ChallengerChip::new(poseidon_chip.clone(), state);
             let fri_chip = FriChip::new(extension_chip, merkle_chip);
             let mut stark_chip = StarkChip::new(challenger_chip, fri_chip);
 

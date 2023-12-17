@@ -3,6 +3,7 @@ use halo2_base::gates::{GateInstructions, RangeInstructions};
 use halo2_base::halo2_proofs::plonk::Assigned;
 use halo2_base::utils::{biguint_to_fe, fe_to_biguint, ScalarField};
 use halo2_base::{AssignedValue, Context};
+use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::{Field, Field64, PrimeField64};
 
@@ -53,6 +54,7 @@ pub struct GoldilocksChip<F: ScalarField> {
 // TODO: Abstract away as generic FieldChip trait?
 //       Change load_* syntax to just *. `load_zero` -> `zero`, `load_constant` -> `constant`
 //       Pass values instead of references since they are cheap to copy?
+//       Assert somewhere that F ~ 256 bits
 impl<F: ScalarField> GoldilocksChip<F> {
     pub fn new(range: RangeChip<F>) -> Self {
         Self { range }
@@ -104,7 +106,15 @@ impl<F: ScalarField> GoldilocksChip<F> {
         ctx: &mut Context<F>,
         a: &[GoldilocksField],
     ) -> Vec<GoldilocksWire<F>> {
-        a.iter().map(|a| self.load_constant(ctx, *a)).collect()
+        a.iter().map(|a| self.load_constant(ctx, *a)).collect_vec()
+    }
+
+    pub fn load_constant_vec(
+        &self,
+        ctx: &mut Context<F>,
+        a: &Vec<GoldilocksField>,
+    ) -> Vec<GoldilocksWire<F>> {
+        a.iter().map(|a| self.load_constant(ctx, *a)).collect_vec()
     }
 
     pub fn load_witness(&self, ctx: &mut Context<F>, a: GoldilocksField) -> GoldilocksWire<F> {
@@ -197,6 +207,7 @@ impl<F: ScalarField> GoldilocksChip<F> {
     pub fn bits_to_num(&self, ctx: &mut Context<F>, bits: &[BoolWire<F>]) -> GoldilocksWire<F> {
         let gate = self.gate();
 
+        // TODO: halo2-lib doesn't use horner's trick so allocates extra 2^i constants
         GoldilocksWire(
             gate.bits_to_num(ctx, bits.iter().map(|x| x.0).collect::<Vec<_>>().as_slice()),
         )

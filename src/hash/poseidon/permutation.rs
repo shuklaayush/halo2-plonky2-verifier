@@ -112,7 +112,8 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
         let mut result = chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]);
         result[0] = state.0[0];
 
-        // TODO: Use inner product gate instead of nested for loop
+        // TODO: Can I use inner product gate instead of nested for loop?
+        //       Reduce at end
         for r in 1..SPONGE_WIDTH {
             for c in 1..SPONGE_WIDTH {
                 let t = chip.load_constant(
@@ -201,21 +202,6 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
         }
     }
 
-    fn full_rounds(
-        &self,
-        ctx: &mut Context<F>,
-        state: &mut PoseidonStateWire<F>,
-        round_ctr: &mut usize,
-    ) {
-        for _ in 0..HALF_N_FULL_ROUNDS {
-            self.constant_layer(ctx, state, *round_ctr);
-            // TODO: Check if &mut state ensures that inputs and outputs are properly constrained
-            self.sbox_layer(ctx, state);
-            *state = self.mds_layer(ctx, state);
-            *round_ctr += 1;
-        }
-    }
-
     fn partial_rounds(
         &self,
         ctx: &mut Context<F>,
@@ -238,6 +224,21 @@ impl<F: ScalarField> PoseidonPermutationChip<F> {
             *state = self.mds_partial_layer_fast(ctx, state, r);
         }
         *round_ctr += N_PARTIAL_ROUNDS;
+    }
+
+    fn full_rounds(
+        &self,
+        ctx: &mut Context<F>,
+        state: &mut PoseidonStateWire<F>,
+        round_ctr: &mut usize,
+    ) {
+        for _ in 0..HALF_N_FULL_ROUNDS {
+            self.constant_layer(ctx, state, *round_ctr);
+            // TODO: Check if &mut state ensures that inputs and outputs are properly constrained
+            self.sbox_layer(ctx, state);
+            *state = self.mds_layer(ctx, state);
+            *round_ctr += 1;
+        }
     }
 
     // TODO: Rename to poseidon?
@@ -264,7 +265,6 @@ mod tests {
     use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
     use halo2_base::utils::testing::base_test;
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
-    use plonky2::hash::hash_types::NUM_HASH_OUT_ELTS;
 
     #[test]
     fn test_permute() {
@@ -280,7 +280,7 @@ mod tests {
                 let state_out = Poseidon::poseidon(state_in);
                 let state_out_wire = permutation_chip.permute(ctx, &state_in_wire);
 
-                for i in 0..NUM_HASH_OUT_ELTS {
+                for i in 0..SPONGE_WIDTH {
                     assert_eq!(state_out[i], state_out_wire.0[i].value());
                 }
             }
