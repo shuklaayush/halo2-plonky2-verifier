@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use halo2_base::{utils::BigPrimeField, Context};
 use itertools::Itertools;
 use plonky2::{
@@ -30,20 +28,20 @@ use crate::{
 // TODO: Follow plonky2 pattern of `load_witness` (add target) and `assert_equal` (set target)
 //       instead of `load_constant`?
 pub struct WitnessChip<F: BigPrimeField, HC: HasherChip<F>> {
+    goldilocks_chip: GoldilocksChip<F>,
     hasher_chip: HC,
-    _marker: PhantomData<F>,
 }
 
 impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
-    pub fn new(hasher_chip: HC) -> Self {
+    pub fn new(goldilocks_chip: GoldilocksChip<F>, hasher_chip: HC) -> Self {
         Self {
+            goldilocks_chip,
             hasher_chip,
-            _marker: PhantomData,
         }
     }
 
     fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
-        self.hasher_chip.goldilocks_chip()
+        &self.goldilocks_chip
     }
 
     fn load(&self, ctx: &mut Context<F>, value: GoldilocksField) -> GoldilocksWire<F> {

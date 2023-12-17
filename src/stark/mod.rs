@@ -25,7 +25,7 @@ use crate::{
         extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire},
         field::GoldilocksWire,
     },
-    hash::{HashWire, HasherChip},
+    hash::{HashWire, HasherChip, PermutationChip},
     merkle::MerkleCapWire,
 };
 
@@ -100,15 +100,15 @@ pub struct StarkProofChallengesWire<F: BigPrimeField> {
     pub fri_challenges: FriChallengesWire<F>,
 }
 
-pub struct StarkChip<F: BigPrimeField, HC: HasherChip<F>> {
-    challenger_chip: ChallengerChip<F, HC>,
+pub struct StarkChip<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> {
+    challenger_chip: ChallengerChip<F, PC>,
     fri_chip: FriChip<F, HC>,
 }
 
 // TODO: Remove all chips and replace with a single CircuitBuilderChip?
 //       To make it consistent with the plonky2 code.
-impl<F: BigPrimeField, HC: HasherChip<F>> StarkChip<F, HC> {
-    pub fn new(challenger_chip: ChallengerChip<F, HC>, fri_chip: FriChip<F, HC>) -> Self {
+impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, HC, PC> {
+    pub fn new(challenger_chip: ChallengerChip<F, PC>, fri_chip: FriChip<F, HC>) -> Self {
         Self {
             challenger_chip,
             fri_chip,
@@ -408,7 +408,7 @@ mod tests {
         type S = FibonacciStark<F, D>;
 
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 3;
+        let num_rows = 1 << 4;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
@@ -427,15 +427,16 @@ mod tests {
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
-            let permutation_chip = poseidon_chip.permutation_chip();
-            let merkle_chip = MerkleTreeChip::new(poseidon_chip.clone());
+            let merkle_chip = MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_chip.clone());
 
+            let permutation_chip = poseidon_chip.permutation_chip();
             let state = permutation_chip.load_zero(ctx);
-            let challenger_chip = ChallengerChip::new(poseidon_chip.clone(), state);
+            let challenger_chip = ChallengerChip::new(permutation_chip.clone(), state);
+
             let fri_chip = FriChip::new(extension_chip, merkle_chip);
             let mut stark_chip = StarkChip::new(challenger_chip, fri_chip);
 
-            let witness_chip = WitnessChip::new(poseidon_chip);
+            let witness_chip = WitnessChip::new(goldilocks_chip, poseidon_chip);
 
             let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
 
@@ -453,7 +454,7 @@ mod tests {
         type S = FibonacciStark<F, D>;
 
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 3;
+        let num_rows = 1 << 4;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
@@ -471,16 +472,19 @@ mod tests {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
-            let poseidon_bn254_chip = PoseidonBN254Chip::new(goldilocks_chip.clone());
-            let permutation_chip = poseidon_bn254_chip.permutation_chip();
-            let merkle_chip = MerkleTreeChip::new(poseidon_bn254_chip.clone());
+            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
+            let poseidon_bn254_chip = PoseidonBN254Chip::new(range.clone());
+            let merkle_chip =
+                MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_bn254_chip.clone());
 
+            let permutation_chip = poseidon_chip.permutation_chip();
             let state = permutation_chip.load_zero(ctx);
-            let challenger_chip = ChallengerChip::new(poseidon_bn254_chip.clone(), state);
+            let challenger_chip = ChallengerChip::new(permutation_chip.clone(), state);
+
             let fri_chip = FriChip::new(extension_chip, merkle_chip);
             let mut stark_chip = StarkChip::new(challenger_chip, fri_chip);
 
-            let witness_chip = WitnessChip::new(poseidon_bn254_chip);
+            let witness_chip = WitnessChip::new(goldilocks_chip, poseidon_bn254_chip);
 
             let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
 

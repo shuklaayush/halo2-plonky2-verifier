@@ -1,25 +1,30 @@
-use halo2_base::{utils::BigPrimeField, Context};
+use halo2_base::{gates::RangeChip, utils::BigPrimeField, Context};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
-use crate::goldilocks::{
-    field::{GoldilocksChip, GoldilocksWire},
-    BoolWire,
-};
+use crate::goldilocks::{field::GoldilocksWire, BoolWire};
 
 pub mod poseidon;
 pub mod poseidon_bn254;
 
 // TODO: Is there a way to avoid the empty trait?
 // TODO: Rename to GenericHashWire?
-pub trait HashWire<F: BigPrimeField>: Copy + Clone {}
+pub trait HashWire<F: BigPrimeField>: Copy + Clone {
+    fn to_goldilocks_vec(
+        &self,
+        ctx: &mut Context<F>,
+        range: &RangeChip<F>,
+    ) -> Vec<GoldilocksWire<F>>;
+}
 
 // TODO: Rename to GenericStateWire?
 pub trait StateWire<F: BigPrimeField>: Copy + Clone {
     type Item: Copy + Clone;
 }
 
-pub trait PermutationChip<F: BigPrimeField> {
+pub trait PermutationChip<F: BigPrimeField>: Clone {
     type StateWire: StateWire<F>;
+
+    fn range(&self) -> &RangeChip<F>;
 
     fn load_zero(&self, ctx: &mut Context<F>) -> Self::StateWire;
 
@@ -56,8 +61,6 @@ pub trait HasherChip<F: BigPrimeField> {
     /// Hash Output
     type HashWire: HashWire<F>;
 
-    fn goldilocks_chip(&self) -> &GoldilocksChip<F>;
-
     fn permutation_chip(&self) -> &Self::PermutationChip;
 
     fn load_constant(
@@ -71,12 +74,6 @@ pub trait HasherChip<F: BigPrimeField> {
         ctx: &mut Context<F>,
         elements: &[GoldilocksWire<F>],
     ) -> Self::HashWire;
-
-    fn to_goldilocks_vec(
-        &self,
-        ctx: &mut Context<F>,
-        hash: &Self::HashWire,
-    ) -> Vec<GoldilocksWire<F>>;
 
     fn select(
         &self,

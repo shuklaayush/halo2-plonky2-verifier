@@ -1,3 +1,4 @@
+use halo2_base::gates::RangeChip;
 use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 use itertools::Itertools;
@@ -17,7 +18,15 @@ pub struct PoseidonHashWire<F: BigPrimeField> {
     pub elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS],
 }
 
-impl<F: BigPrimeField> HashWire<F> for PoseidonHashWire<F> {}
+impl<F: BigPrimeField> HashWire<F> for PoseidonHashWire<F> {
+    fn to_goldilocks_vec(
+        &self,
+        _ctx: &mut Context<F>,
+        _range: &RangeChip<F>,
+    ) -> Vec<GoldilocksWire<F>> {
+        self.elements.to_vec()
+    }
+}
 
 impl<F: BigPrimeField> From<[GoldilocksWire<F>; NUM_HASH_OUT_ELTS]> for PoseidonHashWire<F> {
     fn from(elements: [GoldilocksWire<F>; NUM_HASH_OUT_ELTS]) -> Self {
@@ -48,6 +57,10 @@ impl<F: BigPrimeField> PoseidonChip<F> {
         let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip);
         Self { permutation_chip }
     }
+
+    fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
+        self.permutation_chip().goldilocks_chip()
+    }
 }
 
 impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
@@ -56,10 +69,6 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
     type Hasher = PoseidonHash;
     type HashWire = PoseidonHashWire<F>;
     type PermutationChip = PoseidonPermutationChip<F>;
-
-    fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
-        self.permutation_chip().goldilocks_chip()
-    }
 
     fn permutation_chip(&self) -> &PoseidonPermutationChip<F> {
         &self.permutation_chip
@@ -97,14 +106,6 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         PoseidonHashWire {
             elements: elements.into(),
         }
-    }
-
-    fn to_goldilocks_vec(
-        &self,
-        _ctx: &mut Context<F>,
-        hash: &PoseidonHashWire<F>,
-    ) -> Vec<GoldilocksWire<F>> {
-        hash.elements.to_vec()
     }
 
     fn select(
@@ -216,8 +217,6 @@ mod tests {
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 
             for _ in 0..10 {
-                let goldilocks_chip = poseidon_chip.goldilocks_chip();
-
                 let preimage = GoldilocksField::rand();
                 let preimage_wire = goldilocks_chip.load_witness(ctx, preimage);
 

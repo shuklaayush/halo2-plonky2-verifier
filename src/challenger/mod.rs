@@ -1,3 +1,4 @@
+use halo2_base::gates::RangeChip;
 use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -9,34 +10,35 @@ use starky::stark::Stark;
 use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoeffsExtWire};
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
 use crate::goldilocks::field::GoldilocksWire;
-use crate::hash::{HasherChip, PermutationChip};
+use crate::hash::{HashWire, PermutationChip};
 use crate::merkle::MerkleCapWire;
 use crate::stark::{StarkProofChallengesWire, StarkProofWire};
 
-pub struct ChallengerChip<F: BigPrimeField, HC: HasherChip<F>> {
-    hasher_chip: HC,
+pub struct ChallengerChip<F: BigPrimeField, PC: PermutationChip<F>> {
+    pub permutation_chip: PC,
     // TODO: Ugly
-    sponge_state: <HC::PermutationChip as PermutationChip<F>>::StateWire,
-    input_buffer: Vec<GoldilocksWire<F>>,
-    output_buffer: Vec<GoldilocksWire<F>>,
+    pub sponge_state: PC::StateWire,
+    pub input_buffer: Vec<GoldilocksWire<F>>,
+    pub output_buffer: Vec<GoldilocksWire<F>>,
 }
 
-impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
+impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
     // TODO: Initialize state as zero.
-    pub fn new(
-        hasher_chip: HC,
-        state: <HC::PermutationChip as PermutationChip<F>>::StateWire,
-    ) -> Self {
+    pub fn new(permutation_chip: PC, state: PC::StateWire) -> Self {
         Self {
-            hasher_chip,
+            permutation_chip,
             sponge_state: state,
             input_buffer: vec![],
             output_buffer: vec![],
         }
     }
 
-    pub fn permutation_chip(&self) -> &HC::PermutationChip {
-        self.hasher_chip.permutation_chip()
+    pub fn range(&self) -> &RangeChip<F> {
+        self.permutation_chip().range()
+    }
+
+    pub fn permutation_chip(&self) -> &PC {
+        &self.permutation_chip
     }
 
     pub fn observe_element(&mut self, target: &GoldilocksWire<F>) {
@@ -53,11 +55,12 @@ impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     }
 
     // TODO: What if we want to observe a different hash type than the one used by the challenger's hasher chip?
-    pub fn observe_hash(&mut self, ctx: &mut Context<F>, hash: &HC::HashWire) {
-        self.observe_elements(self.hasher_chip.to_goldilocks_vec(ctx, hash).as_slice())
+    pub fn observe_hash(&mut self, ctx: &mut Context<F>, hash: &impl HashWire<F>) {
+        let range = self.range();
+        self.observe_elements(hash.to_goldilocks_vec(ctx, range).as_slice())
     }
 
-    pub fn observe_cap(&mut self, ctx: &mut Context<F>, cap: &MerkleCapWire<F, HC::HashWire>) {
+    pub fn observe_cap(&mut self, ctx: &mut Context<F>, cap: &MerkleCapWire<F, impl HashWire<F>>) {
         for hash in &cap.0 {
             self.observe_hash(ctx, hash)
         }
@@ -82,9 +85,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     pub fn get_challenge(&mut self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
         self.absorb_buffered_inputs(ctx);
 
-        // TODO: This is some weird error.
-        // let permutation_chip = self.permutation_chip();
-        let permutation_chip = self.hasher_chip.permutation_chip();
+        let permutation_chip = self.permutation_chip.clone();
         if self.output_buffer.is_empty() {
             // Evaluate the permutation to produce `r` new outputs.
             self.sponge_state = permutation_chip.permute(ctx, &self.sponge_state);
@@ -110,7 +111,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     pub fn get_fri_challenges(
         &mut self,
         ctx: &mut Context<F>,
-        commit_phase_merkle_caps: &[MerkleCapWire<F, HC::HashWire>],
+        commit_phase_merkle_caps: &[MerkleCapWire<F, impl HashWire<F>>],
         final_poly: &PolynomialCoeffsExtWire<F>,
         pow_witness: &GoldilocksWire<F>,
         inner_fri_config: &FriConfig,
@@ -148,7 +149,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     pub fn get_stark_challenges<S: Stark<GoldilocksField, 2>>(
         &mut self,
         ctx: &mut Context<F>,
-        proof: &StarkProofWire<F, HC::HashWire>,
+        proof: &StarkProofWire<F, impl HashWire<F>>,
         stark: &S,
         config: &StarkConfig,
     ) -> StarkProofChallengesWire<F> {
@@ -237,7 +238,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
     fn absorb_buffered_inputs(&mut self, ctx: &mut Context<F>) {
         // TODO: This is some weird error.
         // let permutation_chip = self.permutation_chip();
-        let permutation_chip = self.hasher_chip.permutation_chip();
+        let permutation_chip = self.permutation_chip.clone();
 
         if self.input_buffer.is_empty() {
             return;

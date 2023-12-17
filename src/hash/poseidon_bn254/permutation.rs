@@ -11,7 +11,7 @@ use plonky2x::backend::wrapper::poseidon_bn128_constants::{
 };
 use plonky2x::backend::wrapper::utils::Fr as Fr_plonky2x;
 
-use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
+use crate::goldilocks::field::GoldilocksWire;
 use crate::hash::{PermutationChip, StateWire};
 
 #[derive(Copy, Clone, Debug)]
@@ -33,25 +33,17 @@ fn from_fr<F: BigPrimeField>(val: Fr_plonky2x) -> F {
 
 #[derive(Debug, Clone)]
 pub struct PoseidonBN254PermutationChip<F: BigPrimeField> {
-    goldilocks_chip: GoldilocksChip<F>,
+    range: RangeChip<F>,
 }
 
 // TODO: Make this more elegant
 impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
-    pub fn new(goldilocks_chip: GoldilocksChip<F>) -> Self {
-        Self { goldilocks_chip }
+    pub fn new(range: RangeChip<F>) -> Self {
+        Self { range }
     }
 
     pub fn gate(&self) -> &GateChip<F> {
-        self.goldilocks_chip.gate()
-    }
-
-    pub fn range(&self) -> &RangeChip<F> {
-        self.goldilocks_chip.range()
-    }
-
-    pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
-        &self.goldilocks_chip
+        self.range.gate()
     }
 
     fn exp5(&self, ctx: &mut Context<F>, x: AssignedValue<F>) -> AssignedValue<F> {
@@ -170,6 +162,10 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
 impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
     type StateWire = PoseidonBN254StateWire<F>;
 
+    fn range(&self) -> &RangeChip<F> {
+        &self.range
+    }
+
     fn load_zero(&self, ctx: &mut Context<F>) -> PoseidonBN254StateWire<F> {
         PoseidonBN254StateWire(ctx.load_constants(&[F::ZERO; WIDTH]).try_into().unwrap())
     }
@@ -256,8 +252,7 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         base_test().k(14).run(|ctx, range| {
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
-            let permutation_chip = PoseidonBN254PermutationChip::new(goldilocks_chip.clone()); // TODO: Remove clone, use reference
+            let permutation_chip = PoseidonBN254PermutationChip::new(range.clone()); // TODO: Remove clone, use reference
 
             for _ in 0..10 {
                 let mut state: [Fr_plonky2x; WIDTH] = (0..WIDTH)

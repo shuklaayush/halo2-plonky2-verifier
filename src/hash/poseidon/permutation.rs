@@ -1,3 +1,4 @@
+use halo2_base::gates::RangeChip;
 use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -243,6 +244,10 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 
 impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
     type StateWire = PoseidonStateWire<F>;
+
+    fn range(&self) -> &RangeChip<F> {
+        self.goldilocks_chip.range()
+    }
 
     fn load_zero(&self, ctx: &mut Context<F>) -> PoseidonStateWire<F> {
         let chip = self.goldilocks_chip();
