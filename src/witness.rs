@@ -8,8 +8,8 @@ use plonky2::{
         goldilocks_field::GoldilocksField,
     },
     fri::{proof::FriProof, structure::FriOpenings},
-    hash::{hash_types::HashOut, merkle_tree::MerkleCap, poseidon::PoseidonHash},
-    plonk::config::PoseidonGoldilocksConfig,
+    hash::merkle_tree::MerkleCap,
+    plonk::config::{GenericConfig, Hasher},
 };
 use starky::proof::{StarkOpeningSet, StarkProof, StarkProofWithPublicInputs};
 
@@ -34,9 +34,7 @@ pub struct WitnessChip<F: ScalarField, HC: HasherChip<F>> {
     _marker: PhantomData<F>,
 }
 
-impl<F: ScalarField, HC: HasherChip<F, Hasher = PoseidonHash, Hash = HashOut<GoldilocksField>>>
-    WitnessChip<F, HC>
-{
+impl<F: ScalarField, HC: HasherChip<F>> WitnessChip<F, HC> {
     pub fn new(hasher_chip: HC) -> Self {
         Self {
             hasher_chip,
@@ -52,7 +50,11 @@ impl<F: ScalarField, HC: HasherChip<F, Hasher = PoseidonHash, Hash = HashOut<Gol
         self.goldilocks_chip().load_constant(ctx, value)
     }
 
-    fn load_hash(&self, ctx: &mut Context<F>, value: HC::Hash) -> HC::HashWire {
+    fn load_hash(
+        &self,
+        ctx: &mut Context<F>,
+        value: <HC::Hasher as Hasher<GoldilocksField>>::Hash,
+    ) -> HC::HashWire {
         self.hasher_chip.load_constant(ctx, value)
     }
 
@@ -140,7 +142,7 @@ impl<F: ScalarField, HC: HasherChip<F, Hasher = PoseidonHash, Hash = HashOut<Gol
     pub fn load_fri_proof(
         &self,
         ctx: &mut Context<F>,
-        fri_proof: &FriProof<GoldilocksField, PoseidonHash, 2>,
+        fri_proof: &FriProof<GoldilocksField, HC::Hasher, 2>,
     ) -> FriProofWire<F, HC::HashWire> {
         let pow_witness = self.load(ctx, fri_proof.pow_witness);
 
@@ -225,7 +227,11 @@ impl<F: ScalarField, HC: HasherChip<F, Hasher = PoseidonHash, Hash = HashOut<Gol
     pub fn load_proof(
         &self,
         ctx: &mut Context<F>,
-        proof: &StarkProof<GoldilocksField, PoseidonGoldilocksConfig, 2>,
+        proof: &StarkProof<
+            GoldilocksField,
+            impl GenericConfig<2, F = GoldilocksField, Hasher = HC::Hasher>,
+            2,
+        >,
     ) -> StarkProofWire<F, HC::HashWire> {
         let trace_cap = self.load_cap(ctx, &proof.trace_cap);
         let quotient_polys_cap = self.load_cap(ctx, &proof.quotient_polys_cap);
@@ -253,7 +259,11 @@ impl<F: ScalarField, HC: HasherChip<F, Hasher = PoseidonHash, Hash = HashOut<Gol
         &self,
         ctx: &mut Context<F>,
         // TODO: Make generic
-        proof_with_pis: StarkProofWithPublicInputs<GoldilocksField, PoseidonGoldilocksConfig, 2>,
+        proof_with_pis: StarkProofWithPublicInputs<
+            GoldilocksField,
+            impl GenericConfig<2, F = GoldilocksField, Hasher = HC::Hasher>,
+            2,
+        >,
     ) -> StarkProofWithPublicInputsWire<F, HC::HashWire> {
         let StarkProofWithPublicInputs {
             proof,

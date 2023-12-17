@@ -1,8 +1,5 @@
 use halo2_base::{utils::ScalarField, Context};
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    plonk::config::{GenericHashOut, Hasher},
-};
+use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
 use crate::goldilocks::{
     field::{GoldilocksChip, GoldilocksWire},
@@ -24,14 +21,19 @@ pub trait HasherChip<F: ScalarField> {
     const HASH_SIZE: usize;
 
     type Hasher: Hasher<GoldilocksField>;
-    type Hash: GenericHashOut<GoldilocksField>;
+    // TODO: Why doesn't something like this work?
+    // type Hash: Self::Hasher::Hash;
 
     /// Hash Output
     type HashWire: HashWire<F>;
 
     fn goldilocks_chip(&self) -> &GoldilocksChip<F>;
 
-    fn load_constant(&self, ctx: &mut Context<F>, constant: Self::Hash) -> Self::HashWire;
+    fn load_constant(
+        &self,
+        ctx: &mut Context<F>,
+        constant: <Self::Hasher as Hasher<GoldilocksField>>::Hash,
+    ) -> Self::HashWire;
 
     fn select(
         &self,
