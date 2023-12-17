@@ -89,7 +89,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
             // Evaluate the permutation to produce `r` new outputs.
             self.sponge_state = permutation_chip.permute(ctx, &self.sponge_state);
             self.output_buffer = permutation_chip
-                .squeeze_goldilocks(&self.sponge_state)
+                .squeeze_goldilocks(ctx, &self.sponge_state)
                 .to_vec();
         }
 
@@ -248,7 +248,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> ChallengerChip<F, HC> {
 
         // TODO: squeeze -> to_goldilocks_vec
         self.output_buffer = permutation_chip
-            .squeeze_goldilocks(&self.sponge_state)
+            .squeeze_goldilocks(ctx, &self.sponge_state)
             .to_vec();
 
         self.input_buffer.clear();

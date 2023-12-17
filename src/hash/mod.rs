@@ -7,7 +7,7 @@ use crate::goldilocks::{
 };
 
 pub mod poseidon;
-// pub mod poseidon_bn254;
+pub mod poseidon_bn254;
 
 // TODO: Is there a way to avoid the empty trait?
 // TODO: Rename to GenericHashWire?
@@ -33,7 +33,11 @@ pub trait PermutationChip<F: BigPrimeField> {
     // TODO: Return fixed size arrays?
     fn squeeze(&self, state: &Self::StateWire) -> Vec<<Self::StateWire as StateWire<F>>::Item>;
 
-    fn squeeze_goldilocks(&self, state: &Self::StateWire) -> Vec<GoldilocksWire<F>>;
+    fn squeeze_goldilocks(
+        &self,
+        ctx: &mut Context<F>,
+        state: &Self::StateWire,
+    ) -> Vec<GoldilocksWire<F>>;
 }
 
 /// Trait for hash functions.

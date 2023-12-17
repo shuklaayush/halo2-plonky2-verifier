@@ -281,7 +281,11 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
         state.0[..SPONGE_RATE].to_vec()
     }
 
-    fn squeeze_goldilocks(&self, state: &PoseidonStateWire<F>) -> Vec<GoldilocksWire<F>> {
+    fn squeeze_goldilocks(
+        &self,
+        _ctx: &mut Context<F>,
+        state: &PoseidonStateWire<F>,
+    ) -> Vec<GoldilocksWire<F>> {
         self.squeeze(state)
     }
 }

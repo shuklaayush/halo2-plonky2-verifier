@@ -164,7 +164,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         // Squeeze until we have the desired number of outputs.
         // TODO: Fix
         PoseidonHashWire {
-            elements: permutation_chip.squeeze_goldilocks(&state)[..NUM_HASH_OUT_ELTS]
+            elements: permutation_chip.squeeze(&state)[..NUM_HASH_OUT_ELTS]
                 .try_into()
                 .unwrap(),
         }
