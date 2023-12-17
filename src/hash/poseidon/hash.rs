@@ -215,19 +215,19 @@ mod tests {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 
-            // for _ in 0..10 {
-            let goldilocks_chip = poseidon_chip.goldilocks_chip();
+            for _ in 0..10 {
+                let goldilocks_chip = poseidon_chip.goldilocks_chip();
 
-            let preimage = GoldilocksField::rand();
-            let preimage_wire = goldilocks_chip.load_witness(ctx, preimage);
+                let preimage = GoldilocksField::rand();
+                let preimage_wire = goldilocks_chip.load_witness(ctx, preimage);
 
-            let hash = PoseidonHash::hash_no_pad(&[preimage]);
-            let hash_wire = poseidon_chip.hash_no_pad(ctx, &[preimage_wire]);
+                let hash = PoseidonHash::hash_no_pad(&[preimage]);
+                let hash_wire = poseidon_chip.hash_no_pad(ctx, &[preimage_wire]);
 
-            for i in 0..NUM_HASH_OUT_ELTS {
-                assert_eq!(hash.elements[i], hash_wire.elements[i].value());
+                for i in 0..NUM_HASH_OUT_ELTS {
+                    assert_eq!(hash.elements[i], hash_wire.elements[i].value());
+                }
             }
-            // }
         })
     }
 

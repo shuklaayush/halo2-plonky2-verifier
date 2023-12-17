@@ -75,32 +75,37 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         constant_matrix: &[Vec<AssignedValue<F>>],
     ) {
         let gate = self.gate();
+
+        let mut new_state = [ctx.load_zero(); WIDTH];
+        // TODO: Use inner product gate
         for i in 0..WIDTH {
             for j in 0..WIDTH {
-                state.0[i] = gate.mul_add(ctx, state.0[i], constant_matrix[i][j], state.0[j]);
+                new_state[i] = gate.mul_add(ctx, constant_matrix[j][i], state.0[j], new_state[i]);
             }
         }
+        state.0 = new_state;
     }
 
     fn partial_rounds(&self, ctx: &mut Context<F>, state: &mut PoseidonBN254StateWire<F>) {
         let gate = self.gate();
-        for r in 0..PARTIAL_ROUNDS {
+        for i in 0..PARTIAL_ROUNDS {
             state.0[0] = self.exp5(ctx, state.0[0]);
-            let c = ctx.load_constant(from_fr(C_CONSTANTS[(FULL_ROUNDS / 2 + 1) * WIDTH + r]));
+            let c = ctx.load_constant(from_fr(C_CONSTANTS[(FULL_ROUNDS / 2 + 1) * WIDTH + i]));
             state.0[0] = gate.add(ctx, state.0[0], c);
 
-            let new_state = ctx.load_zero();
+            let mut new_state0 = ctx.load_zero();
             for j in 0..WIDTH {
-                let c = ctx.load_constant(from_fr(S_CONSTANTS[(WIDTH * 2 - 1) * r + j]));
-                state.0[j] = gate.mul_add(ctx, new_state, state.0[j], c);
+                let c = ctx.load_constant(from_fr(S_CONSTANTS[(WIDTH * 2 - 1) * i + j]));
+                new_state0 = gate.mul_add(ctx, c, state.0[j], new_state0);
             }
 
             for k in 1..WIDTH {
                 let c =
-                    ctx.load_constant(from_fr(S_CONSTANTS[(WIDTH * 2 - 1) * r + WIDTH + k - 1]));
-                state.0[k] = gate.mul_add(ctx, state.0[k], state.0[0], c);
+                    ctx.load_constant(from_fr(S_CONSTANTS[(WIDTH * 2 - 1) * i + WIDTH + k - 1]));
+                state.0[k] = gate.mul_add(ctx, c, state.0[0], state.0[k]);
             }
-            state.0[0] = new_state;
+
+            state.0[0] = new_state0;
         }
     }
 
@@ -143,6 +148,7 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
             self.mix(ctx, state, m_matrix.as_slice());
         }
 
+        self.exp5_state(ctx, state);
         if is_first {
             self.ark(ctx, state, (FULL_ROUNDS / 2) * WIDTH);
             self.mix(ctx, state, p_matrix.as_slice());
@@ -151,11 +157,11 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         }
     }
 
-    fn ark(&self, ctx: &mut Context<F>, state: &mut PoseidonBN254StateWire<F>, round_ctr: usize) {
+    fn ark(&self, ctx: &mut Context<F>, state: &mut PoseidonBN254StateWire<F>, it: usize) {
         let gate = self.gate();
 
         for i in 0..WIDTH {
-            let c = ctx.load_constant(from_fr(C_CONSTANTS[round_ctr + i]));
+            let c = ctx.load_constant(from_fr(C_CONSTANTS[it + i]));
             state.0[i] = gate.add(ctx, state.0[i], c);
         }
     }

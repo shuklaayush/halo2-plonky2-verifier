@@ -167,8 +167,9 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         let mut state =
             PoseidonBN254StateWire(ctx.load_constants(&[F::ZERO; WIDTH]).try_into().unwrap());
 
-        state.0[0] = left.value;
-        state.0[1] = right.value;
+        // TODO: Why 2, 3?
+        state.0[2] = left.value;
+        state.0[3] = right.value;
 
         state = permutation_chip.permute(ctx, &state);
 
@@ -194,17 +195,17 @@ mod tests {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonBN254Chip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 
-            // for _ in 0..10 {
-            let goldilocks_chip = poseidon_chip.goldilocks_chip();
+            for _ in 0..10 {
+                let goldilocks_chip = poseidon_chip.goldilocks_chip();
 
-            let preimage = GoldilocksField::rand();
-            let preimage_wire = goldilocks_chip.load_witness(ctx, preimage);
+                let preimage = GoldilocksField::rand();
+                let preimage_wire = goldilocks_chip.load_witness(ctx, preimage);
 
-            let hash = PoseidonBN128Hash::hash_no_pad(&[preimage]);
-            let hash_wire = poseidon_chip.hash_no_pad(ctx, &[preimage_wire]);
+                let hash = PoseidonBN128Hash::hash_no_pad(&[preimage]);
+                let hash_wire = poseidon_chip.hash_no_pad(ctx, &[preimage_wire]);
 
-            assert_eq!(hash_to_fr::<Fr>(hash), *hash_wire.value.value());
-            // }
+                assert_eq!(hash_to_fr::<Fr>(hash), *hash_wire.value.value());
+            }
         })
     }
 
