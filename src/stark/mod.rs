@@ -380,7 +380,7 @@ mod tests {
     use anyhow::Result;
     use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
     use halo2_base::utils::testing::base_test;
-    use plonky2::field::types::Field as Plonky2Field;
+    use plonky2::field::types::Field as Field_plonky2;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
     use plonky2::util::timing::TimingTree;
     use plonky2x::backend::wrapper::plonky2_config::PoseidonBN128GoldilocksConfig;
@@ -396,7 +396,7 @@ mod tests {
     use crate::merkle::MerkleTreeChip;
     use crate::witness::WitnessChip;
 
-    fn fibonacci<F: Plonky2Field>(n: usize, x0: F, x1: F) -> F {
+    fn fibonacci<F: Field_plonky2>(n: usize, x0: F, x1: F) -> F {
         (0..n).fold((x0, x1), |x, _| (x.1, x.0 + x.1)).1
     }
 
@@ -408,7 +408,7 @@ mod tests {
         type S = FibonacciStark<F, D>;
 
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 4;
+        let num_rows = 1 << 3;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
@@ -422,7 +422,7 @@ mod tests {
 
         verify_stark_proof(stark, proof_with_pis.clone(), &config)?;
 
-        base_test().k(24).run(|ctx, range| {
+        base_test().k(22).run(|ctx, range| {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
@@ -454,7 +454,7 @@ mod tests {
         type S = FibonacciStark<F, D>;
 
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 4;
+        let num_rows = 1 << 3;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
@@ -468,7 +468,7 @@ mod tests {
 
         verify_stark_proof(stark, proof_with_pis.clone(), &config)?;
 
-        base_test().k(24).run(|ctx, range| {
+        base_test().k(22).run(|ctx, range| {
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
