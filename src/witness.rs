@@ -17,8 +17,8 @@ use crate::{
         FriQueryRoundWire, FriQueryStepWire, PolynomialCoeffsExtWire,
     },
     goldilocks::{
+        base::{GoldilocksChip, GoldilocksWire},
         extension::GoldilocksQuadExtWire,
-        field::{GoldilocksChip, GoldilocksWire},
     },
     hash::HasherChip,
     merkle::{MerkleCapWire, MerkleProofWire},

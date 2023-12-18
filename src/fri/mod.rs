@@ -9,8 +9,8 @@ use plonky2::fri::structure::{FriOracleInfo, FriPolynomialInfo};
 use plonky2::fri::{FriConfig, FriParams};
 use plonky2::util::{log2_strict, reverse_index_bits_in_place};
 
+use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire};
-use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::{MerkleCapWire, MerkleProofWire, MerkleTreeChip};

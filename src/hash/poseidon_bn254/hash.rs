@@ -9,7 +9,7 @@ use plonky2x::backend::wrapper::plonky2_config::{PoseidonBN128Hash, PoseidonBN12
 use plonky2x::backend::wrapper::poseidon_bn128::WIDTH;
 
 use super::permutation::{PoseidonBN254PermutationChip, PoseidonBN254StateWire};
-use crate::goldilocks::field::GoldilocksWire;
+use crate::goldilocks::base::GoldilocksWire;
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
 
@@ -178,7 +178,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
 #[cfg(test)]
 mod tests {
 
-    use crate::goldilocks::field::GoldilocksChip;
+    use crate::goldilocks::base::GoldilocksChip;
 
     use super::*;
     use halo2_base::halo2_proofs::halo2curves::bn256::Fr;

@@ -22,8 +22,8 @@ use crate::{
         FriOpeningsWire, FriProofWire,
     },
     goldilocks::{
+        base::GoldilocksWire,
         extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire},
-        field::GoldilocksWire,
     },
     hash::{HashWire, HasherChip, PermutationChip},
     merkle::MerkleCapWire,
@@ -389,7 +389,7 @@ mod tests {
     use starky::prover::prove;
     use starky::verifier::verify_stark_proof;
 
-    use crate::goldilocks::field::GoldilocksChip;
+    use crate::goldilocks::base::GoldilocksChip;
     use crate::hash::poseidon::hash::PoseidonChip;
     use crate::hash::poseidon_bn254::hash::PoseidonBN254Chip;
     use crate::hash::PermutationChip;

@@ -1,10 +1,10 @@
+pub mod base;
 pub mod extension;
-pub mod field;
 
 use halo2_base::utils::BigPrimeField;
 use halo2_base::AssignedValue;
 
-use field::GoldilocksWire;
+use base::GoldilocksWire;
 
 #[derive(Copy, Clone, Debug)]
 pub struct BoolWire<F: BigPrimeField>(pub AssignedValue<F>);

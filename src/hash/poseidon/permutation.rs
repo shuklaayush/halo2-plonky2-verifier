@@ -8,7 +8,7 @@ use plonky2::hash::poseidon::{
     SPONGE_WIDTH,
 };
 
-use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
+use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::hash::{PermutationChip, StateWire};
 
 #[derive(Copy, Clone, Debug)]

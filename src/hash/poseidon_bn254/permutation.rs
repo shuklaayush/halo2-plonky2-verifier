@@ -11,7 +11,7 @@ use plonky2x::backend::wrapper::poseidon_bn128_constants::{
 };
 use plonky2x::backend::wrapper::utils::Fr as Fr_plonky2x;
 
-use crate::goldilocks::field::GoldilocksWire;
+use crate::goldilocks::base::GoldilocksWire;
 use crate::hash::{PermutationChip, StateWire};
 
 #[derive(Copy, Clone, Debug)]

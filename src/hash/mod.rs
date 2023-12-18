@@ -1,7 +1,7 @@
 use halo2_base::{gates::RangeChip, utils::BigPrimeField, Context};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
-use crate::goldilocks::{field::GoldilocksWire, BoolWire};
+use crate::goldilocks::{base::GoldilocksWire, BoolWire};
 
 pub mod poseidon;
 pub mod poseidon_bn254;

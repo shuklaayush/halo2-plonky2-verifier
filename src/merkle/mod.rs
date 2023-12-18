@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use halo2_base::utils::BigPrimeField;
 use halo2_base::Context;
 
-use crate::goldilocks::field::{GoldilocksChip, GoldilocksWire};
+use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 

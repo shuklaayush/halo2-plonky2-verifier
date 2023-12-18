@@ -7,7 +7,7 @@ use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::util::bits_u64;
 
-use super::field::{GoldilocksChip, GoldilocksWire};
+use super::base::{GoldilocksChip, GoldilocksWire};
 
 // TODO: Use const generics for arbitrary GoldilocksExtWire
 #[derive(Copy, Clone, Debug)]

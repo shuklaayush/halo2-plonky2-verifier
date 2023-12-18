@@ -8,8 +8,8 @@ use starky::permutation::{PermutationChallenge, PermutationChallengeSet};
 use starky::stark::Stark;
 
 use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoeffsExtWire};
+use crate::goldilocks::base::GoldilocksWire;
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
-use crate::goldilocks::field::GoldilocksWire;
 use crate::hash::{HashWire, PermutationChip};
 use crate::merkle::MerkleCapWire;
 use crate::stark::{StarkProofChallengesWire, StarkProofWire};
