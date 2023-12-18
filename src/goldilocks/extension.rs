@@ -69,7 +69,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         ])
     }
 
-    fn load_constant_array<const N: usize>(
+    pub fn load_constant_array<const N: usize>(
         &self,
         ctx: &mut Context<F>,
         a: &[QuadraticExtension<GoldilocksField>; N],
