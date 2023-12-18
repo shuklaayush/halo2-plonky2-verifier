@@ -9,6 +9,7 @@ TODOs:
 - [x] FRI verification
 - [ ] STARK vanishing polynomial evaluation
 - [ ] PLONK verification
+- [ ] Benchmarking
 
 ## Test
 
