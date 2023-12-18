@@ -7,6 +7,7 @@ use plonky2::field::interpolation::barycentric_weights;
 use plonky2::field::types::Field;
 use plonky2::fri::structure::{FriOracleInfo, FriPolynomialInfo};
 use plonky2::fri::{FriConfig, FriParams};
+use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::util::{log2_strict, reverse_index_bits_in_place};
 
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
@@ -344,8 +345,8 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
         // Note that this `low_bits` decomposition permits non-canonical binary encodings. Here we
         // verify that this has a negligible impact on soundness error.
-        // TODO: Add this check back in.
-        // Self::assert_noncanonical_indices_ok(&params.config);
+        // TODO: This should ideally be someplace else in the plonky2 crate.
+        CircuitBuilder::<GoldilocksField, 2>::assert_noncanonical_indices_ok(&params.config);
 
         // TODO: Do I need to do full bit decomposition since truncating?
         let mut x_index_bits = goldilocks_chip.num_to_bits(ctx, &x_index, GoldilocksField::BITS);
@@ -446,7 +447,10 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         proof: &FriProofWire<F, HC::HashWire>,
         params: &FriParams,
     ) {
-        // TODO
+        // TODO: Do I need any of this?
+        // if let Some(max_arity_bits) = params.max_arity_bits() {
+        //     self.check_recursion_config(max_arity_bits);
+        // }
         // validateFriProofShape(friProof, instance, f.friParams)
 
         debug_assert_eq!(
