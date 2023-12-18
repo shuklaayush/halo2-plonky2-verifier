@@ -1,6 +1,6 @@
 # Halo2 plonky2 verifier
 
-This repository contains halo2 gadgets to verify [plonky2/starky](https://github.com/0xpolygonzero/plonky2) proofs.
+This repository contains halo2 gadgets to verify [plonky2/starky](https://github.com/0xpolygonzero/plonky2) proofs. It uses Axiom's [halo2-lib](https://github.com/axiom-crypto/halo2-lib) under the hood.
 
 Currently, the code can verify FRI proofs from plonky2, and full proof verification is still WIP.
 
