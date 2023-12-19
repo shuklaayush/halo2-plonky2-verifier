@@ -32,6 +32,7 @@ pub struct WitnessChip<F: BigPrimeField, HC: HasherChip<F>> {
     hasher_chip: HC,
 }
 
+// TODO: This should all probably be load_witness
 impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>, hasher_chip: HC) -> Self {
         Self {

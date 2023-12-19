@@ -47,15 +47,6 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         Self { goldilocks_chip }
     }
 
-    pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
-        let zero = GoldilocksWire(ctx.load_zero());
-        GoldilocksQuadExtWire([zero, zero])
-    }
-
-    pub fn load_one(&self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
-        self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE)
-    }
-
     pub fn load_constant(
         &self,
         ctx: &mut Context<F>,
@@ -67,6 +58,14 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
             self.goldilocks_chip.load_constant(ctx, a0),
             self.goldilocks_chip.load_constant(ctx, a1),
         ])
+    }
+
+    pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
+        self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ZERO)
+    }
+
+    pub fn load_one(&self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
+        self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE)
     }
 
     pub fn load_constant_array<const N: usize>(
@@ -123,21 +122,6 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         GoldilocksQuadExtWire([*a, zero])
     }
 
-    pub fn add(
-        &self,
-        ctx: &mut Context<F>,
-        a: &GoldilocksQuadExtWire<F>,
-        b: &GoldilocksQuadExtWire<F>,
-    ) -> GoldilocksQuadExtWire<F> {
-        let GoldilocksQuadExtWire([a0, a1]) = a;
-        let GoldilocksQuadExtWire([b0, b1]) = b;
-
-        GoldilocksQuadExtWire([
-            self.goldilocks_chip.add(ctx, a0, b0),
-            self.goldilocks_chip.add(ctx, a1, b1),
-        ])
-    }
-
     pub fn add_no_reduce(
         &self,
         ctx: &mut Context<F>,
@@ -153,7 +137,17 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         ])
     }
 
-    pub fn sub(
+    pub fn add(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+        b: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let sum = self.add_no_reduce(ctx, a, b);
+        self.reduce(ctx, &sum)
+    }
+
+    pub fn sub_no_reduce(
         &self,
         ctx: &mut Context<F>,
         a: &GoldilocksQuadExtWire<F>,
@@ -163,12 +157,47 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         let GoldilocksQuadExtWire([b0, b1]) = b;
 
         GoldilocksQuadExtWire([
-            self.goldilocks_chip.sub(ctx, a0, b0),
-            self.goldilocks_chip.sub(ctx, a1, b1),
+            self.goldilocks_chip.sub_no_reduce(ctx, a0, b0),
+            self.goldilocks_chip.sub_no_reduce(ctx, a1, b1),
         ])
     }
 
+    pub fn sub(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+        b: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let diff = self.sub_no_reduce(ctx, a, b);
+        self.reduce(ctx, &diff)
+    }
+
     // a * b = (a0 * b0 + w * a1 * b1, a0 * b1 + a1 * b0)
+    pub fn mul_no_reduce(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+        b: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let GoldilocksQuadExtWire([a0, a1]) = a;
+        let GoldilocksQuadExtWire([b0, b1]) = b;
+
+        let w = self
+            .goldilocks_chip
+            .load_constant(ctx, <GoldilocksField as Extendable<2>>::W); // TODO: Cache
+        let a0b0 = self.goldilocks_chip.mul_no_reduce(ctx, a0, b0);
+        let a1b1 = self.goldilocks_chip.mul_no_reduce(ctx, a1, b1);
+        let wa1b1 = self.goldilocks_chip.mul_no_reduce(ctx, &w, &a1b1);
+        let c0 = self.goldilocks_chip.add_no_reduce(ctx, &a0b0, &wa1b1);
+
+        let a0b1 = self.goldilocks_chip.mul_no_reduce(ctx, a0, b1);
+        let a1b0 = self.goldilocks_chip.mul_no_reduce(ctx, a1, b0);
+        let c1 = self.goldilocks_chip.add_no_reduce(ctx, &a0b1, &a1b0);
+
+        GoldilocksQuadExtWire([c0, c1])
+    }
+
+    // TODO: Can I use `mul_no_reduce` here? Because c0 is > p*(p-1)
     pub fn mul(
         &self,
         ctx: &mut Context<F>,
@@ -225,31 +254,19 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         GoldilocksQuadExtWire([c0, c1])
     }
 
-    pub fn mul_no_reduce(
+    // TODO: Can I use a custom gate for this?
+    pub fn mul_add_no_reduce(
         &self,
         ctx: &mut Context<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
+        c: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
-        let GoldilocksQuadExtWire([a0, a1]) = a;
-        let GoldilocksQuadExtWire([b0, b1]) = b;
-
-        let w = self
-            .goldilocks_chip
-            .load_constant(ctx, <GoldilocksField as Extendable<2>>::W); // TODO: Cache
-        let a0b0 = self.goldilocks_chip.mul_no_reduce(ctx, a0, b0);
-        let a1b1 = self.goldilocks_chip.mul_no_reduce(ctx, a1, b1);
-        let wa1b1 = self.goldilocks_chip.mul_no_reduce(ctx, &w, &a1b1);
-        let c0 = self.goldilocks_chip.add_no_reduce(ctx, &a0b0, &wa1b1);
-
-        let a0b1 = self.goldilocks_chip.mul_no_reduce(ctx, a0, b1);
-        let a1b0 = self.goldilocks_chip.mul_no_reduce(ctx, a1, b0);
-        let c1 = self.goldilocks_chip.add_no_reduce(ctx, &a0b1, &a1b0);
-
-        GoldilocksQuadExtWire([c0, c1])
+        let ab = self.mul_no_reduce(ctx, a, b);
+        self.add_no_reduce(ctx, &ab, c)
     }
 
-    // TODO: Can I use a custom gate for this?
+    // TODO: Can I use `mul_no_reduce` here? Because c0 is > p*(p-1)
     pub fn mul_add(
         &self,
         ctx: &mut Context<F>,
@@ -261,7 +278,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         self.add(ctx, &ab, c)
     }
 
-    pub fn mul_add_no_reduce(
+    pub fn mul_sub_no_reduce(
         &self,
         ctx: &mut Context<F>,
         a: &GoldilocksQuadExtWire<F>,
@@ -269,7 +286,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         c: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
         let ab = self.mul_no_reduce(ctx, a, b);
-        self.add_no_reduce(ctx, &ab, c)
+        self.sub_no_reduce(ctx, &ab, c)
     }
 
     pub fn mul_sub(
@@ -283,7 +300,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         self.sub(ctx, &ab, c)
     }
 
-    // TODO: Is this correct?
+    // TODO: Is this correct? Is there a better way to do this?
     pub fn inv(
         &self,
         ctx: &mut Context<F>,
@@ -293,6 +310,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         let inverse = a.value().inverse();
 
         // 2. Load witnesses from hint
+        //    Also performs range check
         let inverse = self.load_witness(ctx, inverse);
 
         // 3. Constrain witnesses
@@ -325,6 +343,19 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         GoldilocksQuadExtWire([
             self.goldilocks_chip.div(ctx, &a.0[0], b),
             self.goldilocks_chip.div(ctx, &a.0[1], b),
+        ])
+    }
+
+    pub fn reduce(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let GoldilocksQuadExtWire([a0, a1]) = a;
+
+        GoldilocksQuadExtWire([
+            self.goldilocks_chip.reduce(ctx, a0),
+            self.goldilocks_chip.reduce(ctx, a1),
         ])
     }
 
@@ -387,19 +418,6 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
         self.goldilocks_chip.assert_equal(ctx, a0, b0);
         self.goldilocks_chip.assert_equal(ctx, a1, b1);
-    }
-
-    pub fn reduce(
-        &self,
-        ctx: &mut Context<F>,
-        a: &GoldilocksQuadExtWire<F>,
-    ) -> GoldilocksQuadExtWire<F> {
-        let GoldilocksQuadExtWire([a0, a1]) = a;
-
-        GoldilocksQuadExtWire([
-            self.goldilocks_chip.reduce(ctx, a0),
-            self.goldilocks_chip.reduce(ctx, a1),
-        ])
     }
 
     // TODO: There should be a way to do this without reducing every step

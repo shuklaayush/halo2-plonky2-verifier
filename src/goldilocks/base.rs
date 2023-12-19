@@ -1,7 +1,7 @@
 use halo2_base::gates::{GateChip, RangeChip};
 use halo2_base::gates::{GateInstructions, RangeInstructions};
 use halo2_base::halo2_proofs::plonk::Assigned;
-use halo2_base::utils::{biguint_to_fe, fe_to_biguint, BigPrimeField};
+use halo2_base::utils::{fe_to_biguint, BigPrimeField};
 use halo2_base::{AssignedValue, Context};
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -69,23 +69,23 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         &self.range
     }
 
-    pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
-        GoldilocksWire(ctx.load_zero())
-    }
-
-    pub fn load_one(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
-        GoldilocksWire(ctx.load_constant(F::ONE))
-    }
-
-    pub fn load_neg_one(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
-        let neg_one = GoldilocksField::NEG_ONE.to_canonical_u64();
-        GoldilocksWire(ctx.load_constant(F::from(neg_one)))
-    }
-
     // TODO: Keep a track of constants loaded to avoid loading them multiple times?
+    //       Maybe do range check
     pub fn load_constant(&self, ctx: &mut Context<F>, a: GoldilocksField) -> GoldilocksWire<F> {
         let a = a.to_canonical_u64();
         GoldilocksWire(ctx.load_constant(F::from(a)))
+    }
+
+    pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
+        self.load_constant(ctx, GoldilocksField::ZERO)
+    }
+
+    pub fn load_one(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
+        self.load_constant(ctx, GoldilocksField::ONE)
+    }
+
+    pub fn load_neg_one(&self, ctx: &mut Context<F>) -> GoldilocksWire<F> {
+        self.load_constant(ctx, GoldilocksField::NEG_ONE)
     }
 
     pub fn load_constant_array<const N: usize>(
@@ -119,7 +119,10 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
 
     pub fn load_witness(&self, ctx: &mut Context<F>, a: GoldilocksField) -> GoldilocksWire<F> {
         let a = a.to_canonical_u64();
-        GoldilocksWire(ctx.load_witness(F::from(a)))
+        let wire = GoldilocksWire(ctx.load_witness(F::from(a)));
+        // Ensure that the witness is in the Goldilocks field
+        self.range_check(ctx, &wire);
+        wire
     }
 
     pub fn select(
@@ -218,17 +221,6 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         self.mul(ctx, a, &neg_one)
     }
 
-    pub fn add(
-        &self,
-        ctx: &mut Context<F>,
-        a: &GoldilocksWire<F>,
-        b: &GoldilocksWire<F>,
-    ) -> GoldilocksWire<F> {
-        // TODO: Cache
-        let one = self.load_one(ctx);
-        self.mul_add(ctx, a, &one, b)
-    }
-
     pub fn add_no_reduce(
         &self,
         ctx: &mut Context<F>,
@@ -236,8 +228,28 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
         let gate = self.gate();
-
         GoldilocksWire(gate.add(ctx, a.0, b.0))
+    }
+
+    pub fn add(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        let sum = self.add_no_reduce(ctx, a, b);
+        self.reduce(ctx, &sum)
+    }
+
+    pub fn sub_no_reduce(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        let gate = self.gate();
+        let neg_one = self.load_neg_one(ctx);
+        GoldilocksWire(gate.mul_add(ctx, b.0, neg_one.0, a.0))
     }
 
     pub fn sub(
@@ -246,32 +258,8 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        let neg_one = self.load_neg_one(ctx);
-        self.mul_add(ctx, b, &neg_one, a)
-    }
-
-    // TODO: What is this even supposed to do?
-    pub fn sub_no_reduce(
-        &self,
-        ctx: &mut Context<F>,
-        a: &GoldilocksWire<F>,
-        b: &GoldilocksWire<F>,
-    ) -> GoldilocksWire<F> {
-        let gate = self.gate();
-
-        let neg_one = self.load_neg_one(ctx);
-        let minus_b = gate.mul(ctx, b.0, neg_one.0);
-        GoldilocksWire(gate.add(ctx, a.0, minus_b))
-    }
-
-    pub fn mul(
-        &self,
-        ctx: &mut Context<F>,
-        a: &GoldilocksWire<F>,
-        b: &GoldilocksWire<F>,
-    ) -> GoldilocksWire<F> {
-        let zero = self.load_constant(ctx, GoldilocksField::ZERO);
-        self.mul_add(ctx, a, b, &zero)
+        let diff = self.sub_no_reduce(ctx, a, b);
+        self.reduce(ctx, &diff)
     }
 
     pub fn mul_no_reduce(
@@ -281,69 +269,17 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
         let gate = self.gate();
-
         GoldilocksWire(gate.mul(ctx, a.0, b.0))
     }
 
-    // TODO: Change to div_add?
-    pub fn div(
+    pub fn mul(
         &self,
         ctx: &mut Context<F>,
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        // TODO: Is this required?
-        assert!(b.value() != GoldilocksField::ZERO);
-
-        // 1. Calculate hint
-        let res = a.value() / b.value();
-
-        // 2. Load witnesses from hint
-        let res = self.load_witness(ctx, res);
-
-        // 3. Constrain witnesses
-        let product = self.mul(ctx, b, &res);
-        self.assert_equal(ctx, a, &product);
-
-        res
-    }
-
-    pub fn square(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
-        self.mul(ctx, a, a)
-    }
-
-    pub fn mul_add(
-        &self,
-        ctx: &mut Context<F>,
-        a: &GoldilocksWire<F>,
-        b: &GoldilocksWire<F>,
-        c: &GoldilocksWire<F>,
-    ) -> GoldilocksWire<F> {
-        // 1. Calculate hint
-        let product: u128 =
-            (a.value().to_canonical_u64() as u128) * (b.value().to_canonical_u64() as u128);
-        let sum = product + (c.value().to_canonical_u64() as u128);
-        let quotient = (sum / (GoldilocksField::ORDER as u128)) as u64;
-        let remainder = (sum % (GoldilocksField::ORDER as u128)) as u64;
-
-        // 2. Load witnesses from hint
-        let quotient = self.load_witness(ctx, GoldilocksField::from_canonical_u64(quotient));
-        let remainder = self.load_witness(ctx, GoldilocksField::from_canonical_u64(remainder));
-
-        // 3. Constrain witnesses
-        let gate = self.gate();
-        let lhs = gate.mul_add(ctx, a.0, b.0, c.0);
-        let p = ctx.load_constant(F::from(GoldilocksField::ORDER)); // TODO: Cache
-        let rhs = gate.mul_add(ctx, p, quotient.0, remainder.0);
-
-        gate.is_equal(ctx, lhs, rhs);
-
-        let range = self.range();
-        range.check_less_than_safe(ctx, quotient.0, GoldilocksField::ORDER);
-        range.check_less_than_safe(ctx, remainder.0, GoldilocksField::ORDER);
-
-        // Return
-        remainder
+        let prod = self.mul_no_reduce(ctx, a, b);
+        self.reduce(ctx, &prod)
     }
 
     pub fn mul_add_no_reduce(
@@ -354,8 +290,18 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         c: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
         let gate = self.gate();
-
         GoldilocksWire(gate.mul_add(ctx, a.0, b.0, c.0))
+    }
+
+    pub fn mul_add(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+        c: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        let prodadd = self.mul_add_no_reduce(ctx, a, b, c);
+        self.reduce(ctx, &prodadd)
     }
 
     // TODO: Can I use a custom gate here?
@@ -366,8 +312,33 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         b: &GoldilocksWire<F>,
         c: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        let ab = self.mul(ctx, a, b);
-        self.sub(ctx, &ab, c)
+        let prod = self.mul_no_reduce(ctx, a, b);
+        let diff = self.sub_no_reduce(ctx, &prod, c);
+        self.reduce(ctx, &diff)
+    }
+
+    // TODO: Only supports reduction upto p * (p - 1) i.e. max value of a mul_add
+    pub fn reduce(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
+        // 1. Calculate hint
+        let val = fe_to_biguint(a.value_raw());
+        let quotient =
+            GoldilocksField::from_noncanonical_biguint(val.clone() / GoldilocksField::ORDER);
+        let remainder = GoldilocksField::from_noncanonical_biguint(val);
+
+        // 2. Load witnesses from hint
+        //    Also ensures that quotient and remainder are in the field
+        let quotient = self.load_witness(ctx, quotient);
+        let remainder = self.load_witness(ctx, remainder);
+
+        // 3. Constrain witnesses
+        let gate = self.gate();
+        let p = ctx.load_constant(F::from(GoldilocksField::ORDER));
+        let rhs = gate.mul_add(ctx, quotient.0, p, remainder.0);
+
+        gate.is_equal(ctx, a.0, rhs);
+
+        // Return
+        remainder
     }
 
     pub fn inv(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
@@ -386,6 +357,35 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         inverse
     }
 
+    // TODO: Change to div_add?
+    pub fn div(
+        &self,
+        ctx: &mut Context<F>,
+        a: &GoldilocksWire<F>,
+        b: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
+        // TODO: Is this required?
+        assert!(b.value() != GoldilocksField::ZERO);
+
+        // 1. Calculate hint
+        let res = a.value() / b.value();
+
+        // 2. Load witnesses from hint
+        //    Also ensures that res is in the field
+        let res = self.load_witness(ctx, res);
+
+        // 3. Constrain witnesses
+        let product = self.mul(ctx, b, &res);
+        self.assert_equal(ctx, a, &product);
+
+        res
+    }
+
+    pub fn square(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
+        self.mul(ctx, a, a)
+    }
+
+    // TODO: Lazy reduction?
     pub fn exp_from_bits_const_base(
         &self,
         ctx: &mut Context<F>,
@@ -410,6 +410,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         product
     }
 
+    // TODO: Lazy reduction?
     pub fn exp_power_of_2(
         &self,
         ctx: &mut Context<F>,
@@ -423,40 +424,13 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         product
     }
 
-    pub fn reduce(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
-        // 1. Calculate hint
-        let val = fe_to_biguint(a.value_raw());
-        let quotient = val.clone() / GoldilocksField::ORDER;
-        let remainder = GoldilocksField::from_noncanonical_biguint(val);
-
-        // 2. Load witnesses from hint
-        let quotient = ctx.load_witness(biguint_to_fe(&quotient));
-        let remainder = self.load_witness(ctx, remainder);
-
-        // 3. Constrain witnesses
-        let gate = self.gate();
-        let p = ctx.load_constant(F::from(GoldilocksField::ORDER));
-        let rhs = gate.mul_add(ctx, quotient, p, remainder.0);
-
-        gate.is_equal(ctx, a.0, rhs);
-
-        let range = self.range();
-        // TODO: Dummy
-        range.range_check(ctx, quotient, 160);
-        range.check_less_than_safe(ctx, remainder.0, GoldilocksField::ORDER);
-
-        // Return
-        remainder
+    pub fn assert_equal(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>, b: &GoldilocksWire<F>) {
+        ctx.constrain_equal(&a.0, &b.0);
     }
 
     pub fn range_check(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>) {
         let range = self.range();
-        let p = ctx.load_constant(F::from(GoldilocksField::ORDER)); // TODO: Cache
-        range.check_less_than(ctx, a.0, p, 64);
-    }
-
-    pub fn assert_equal(&self, ctx: &mut Context<F>, a: &GoldilocksWire<F>, b: &GoldilocksWire<F>) {
-        ctx.constrain_equal(&a.0, &b.0);
+        range.check_less_than_safe(ctx, a.0, GoldilocksField::ORDER);
     }
 }
 
