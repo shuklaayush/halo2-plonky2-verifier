@@ -27,6 +27,7 @@ use crate::{
     },
     hash::{HashWire, HasherChip, PermutationChip},
     merkle::MerkleCapWire,
+    num_advice,
 };
 
 pub struct PermutationCheckDataWire<F: BigPrimeField> {
@@ -332,14 +333,18 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
             GoldilocksField::primitive_root_of_unity(degree_bits),
             inner_config,
         );
-        self.fri_chip.verify_fri_proof(
+        num_advice!(
             ctx,
-            &fri_instance,
-            &proof.openings.to_fri_openings(),
-            &challenges.fri_challenges,
-            &merkle_caps,
-            &proof.opening_proof,
-            &inner_config.fri_params(degree_bits),
+            "fri_chip.verify_fri_proof",
+            self.fri_chip.verify_fri_proof(
+                ctx,
+                &fri_instance,
+                &proof.openings.to_fri_openings(),
+                &challenges.fri_challenges,
+                &merkle_caps,
+                &proof.opening_proof,
+                &inner_config.fri_params(degree_bits),
+            )
         );
     }
 
@@ -355,20 +360,28 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
     {
         assert_eq!(proof_with_pis.public_inputs.len(), S::PUBLIC_INPUTS);
         let degree_bits = proof_with_pis.proof.recover_degree_bits(inner_config);
-        let challenges = self.challenger_chip.get_stark_challenges::<S>(
+        let challenges = num_advice!(
             ctx,
-            &proof_with_pis.proof,
-            &stark,
-            inner_config,
+            "challenger_chip.get_stark_challenges",
+            self.challenger_chip.get_stark_challenges::<S>(
+                ctx,
+                &proof_with_pis.proof,
+                &stark,
+                inner_config,
+            )
         );
 
-        self.verify_proof_with_challenges::<S>(
+        num_advice!(
             ctx,
-            stark,
-            proof_with_pis,
-            challenges,
-            inner_config,
-            degree_bits,
+            "stark_chip.verify_proof_with_challenges",
+            self.verify_proof_with_challenges::<S>(
+                ctx,
+                stark,
+                proof_with_pis,
+                challenges,
+                inner_config,
+                degree_bits,
+            )
         );
     }
 }
@@ -401,14 +414,14 @@ mod tests {
     }
 
     #[test]
-    fn test_fibonacci_stark() -> Result<()> {
+    fn test_fibonacci_stark_gl() -> Result<()> {
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         type S = FibonacciStark<F, D>;
 
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 3;
+        let num_rows = 1 << 4;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
@@ -454,7 +467,7 @@ mod tests {
         type S = FibonacciStark<F, D>;
 
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 3;
+        let num_rows = 1 << 4;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
@@ -486,9 +499,17 @@ mod tests {
 
             let witness_chip = WitnessChip::new(goldilocks_chip, poseidon_bn254_chip);
 
-            let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
+            let proof_with_pis = num_advice!(
+                ctx,
+                "witness_chip.load_proof_with_pis",
+                witness_chip.load_proof_with_pis(ctx, proof_with_pis)
+            );
 
-            stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
+            num_advice!(
+                ctx,
+                "stark_chip.verify_proof",
+                stark_chip.verify_proof(ctx, stark, proof_with_pis, &config)
+            );
         });
 
         Ok(())

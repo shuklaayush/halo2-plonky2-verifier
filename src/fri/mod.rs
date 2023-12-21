@@ -15,6 +15,7 @@ use crate::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire}
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::{MerkleCapWire, MerkleProofWire, MerkleTreeChip};
+use crate::num_advice;
 
 pub struct FriInstanceInfoWire<F: BigPrimeField> {
     pub oracles: Vec<FriOracleInfo>,
@@ -479,17 +480,21 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         );
 
         for (i, round_proof) in proof.query_round_proofs.iter().enumerate() {
-            self.verify_query_round(
+            num_advice!(
                 ctx,
-                instance,
-                challenges,
-                &precomputed_reduced_evals,
-                initial_merkle_caps,
-                proof,
-                challenges.fri_query_indices[i],
-                n,
-                round_proof,
-                params,
+                format!("verify_query_round({})", i),
+                self.verify_query_round(
+                    ctx,
+                    instance,
+                    challenges,
+                    &precomputed_reduced_evals,
+                    initial_merkle_caps,
+                    proof,
+                    challenges.fri_query_indices[i],
+                    n,
+                    round_proof,
+                    params,
+                )
             );
         }
     }
