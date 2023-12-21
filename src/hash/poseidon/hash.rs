@@ -97,11 +97,9 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         elements_in: &[GoldilocksWire<F>],
     ) -> PoseidonHashWire<F> {
         debug_assert!(elements_in.len() <= NUM_HASH_OUT_ELTS);
-        // TODO: No need to load extra zeros here if they aren't used
-        //       Is this way of initializing cells correct? Array will have
-        //       multiple zeros referring to the same cell
-        let zero = GoldilocksWire(ctx.load_zero());
-        let mut elements = [zero; NUM_HASH_OUT_ELTS];
+        let goldilocks_chip = self.goldilocks_chip();
+        let mut elements =
+            goldilocks_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; NUM_HASH_OUT_ELTS]);
         elements[0..elements_in.len()].copy_from_slice(elements_in);
         PoseidonHashWire {
             elements: elements.into(),
@@ -152,11 +150,11 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         ctx: &mut Context<F>,
         values: &[GoldilocksWire<F>],
     ) -> PoseidonHashWire<F> {
-        let gl_chip = self.goldilocks_chip();
+        let goldilocks_chip = self.goldilocks_chip();
         let permutation_chip = self.permutation_chip();
 
         let mut state = PoseidonStateWire(
-            gl_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]),
+            goldilocks_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]),
         );
 
         // Absorb all input chunks.
@@ -178,12 +176,12 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         left: &PoseidonHashWire<F>,
         right: &PoseidonHashWire<F>,
     ) -> PoseidonHashWire<F> {
-        let gl_chip = self.goldilocks_chip();
+        let goldilocks_chip = self.goldilocks_chip();
         let permutation_chip = self.permutation_chip();
 
         // TODO: Remove extra cell assignments
         let mut state = PoseidonStateWire(
-            gl_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]),
+            goldilocks_chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]),
         );
 
         state.0[0..NUM_HASH_OUT_ELTS].copy_from_slice(left.elements.as_slice());
