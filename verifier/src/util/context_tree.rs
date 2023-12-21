@@ -155,17 +155,26 @@ impl ContextTree {
         }
     }
 
-    pub fn write_flamegraph(&self, svg_buffer: &mut impl Write, current_cell_count: usize) {
+    pub fn write_flamegraph(
+        &self,
+        svg_buffer: &mut impl Write,
+        title: &str,
+        current_cell_count: usize,
+        reverse: bool,
+    ) {
         let mut buffer = Vec::new();
         self.write(&mut buffer, current_cell_count);
         // TODO: Is there a way to iterate over the lines without allocating a string?
         let trace = String::from_utf8(buffer).expect("Failed to convert to string");
 
         let mut options = Options::default();
-        options.title = "Advice Cells".to_string();
+        options.title = title.to_string();
         options.count_name = "cells".to_string();
-        options.direction = Direction::Inverted;
-        options.reverse_stack_order = true;
+
+        if reverse {
+            options.direction = Direction::Inverted;
+            options.reverse_stack_order = true;
+        }
 
         flamegraph::from_lines(&mut options, trace.lines(), svg_buffer)
             .expect("Failed to write flamegraph");

@@ -449,7 +449,10 @@ mod tests {
             let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
 
             stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
-            ctx.write_cell_counts_flamegraph("profile/flamegraph.svg", 0);
+            ctx.write_cell_counts_flamegraph(
+                "profile/flamegraph_gl.svg",
+                &format!("Goldilocks (n={})", num_rows),
+            );
         });
 
         Ok(())
@@ -503,7 +506,10 @@ mod tests {
 
             stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
 
-            ctx.write_cell_counts_flamegraph("profile/flamegraph.svg", 0);
+            ctx.write_cell_counts_flamegraph(
+                "profile/flamegraph_bn254.svg",
+                &format!("BN254 (n={})", num_rows),
+            );
         });
 
         Ok(())

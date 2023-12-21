@@ -55,22 +55,30 @@ impl<'ctx, F: ScalarField> ContextWrapper<'ctx, F> {
         // }
     }
 
-    pub fn write_cell_counts(&self, path: &str, min_delta: usize) {
+    pub fn write_cell_counts(&self, path: &str) {
         let mut file = File::create(path).expect("failed to create file");
 
         self.tree
-            .filter(self.num_cells(), min_delta)
+            // .filter(self.num_cells(), min_delta)
             .write(&mut file, self.num_cells());
     }
 
-    pub fn write_cell_counts_flamegraph(&self, svg_name: &str, min_delta: usize) {
+    pub fn write_cell_counts_flamegraph(&self, svg_name: &str, title: &str) {
+        self.write_cell_counts_flamegraph_helper(svg_name, title, false)
+    }
+
+    pub fn write_cell_counts_flamegraph_reversed(&self, svg_name: &str, title: &str) {
+        self.write_cell_counts_flamegraph_helper(svg_name, title, true)
+    }
+
+    fn write_cell_counts_flamegraph_helper(&self, svg_name: &str, title: &str, reverse: bool) {
         let path = Path::new(svg_name);
         create_dir_all(path.parent().unwrap()).expect("failed to create directory");
         let mut file = File::create(path)
-            .expect(format!("Failed to create file: {}", path.to_str().unwrap()).as_str());
+            .unwrap_or_else(|_| panic!("Failed to create file: {}", path.to_str().unwrap()));
 
         self.tree
-            .filter(self.num_cells(), min_delta)
-            .write_flamegraph(&mut file, self.num_cells());
+            // .filter(self.num_cells(), min_delta)
+            .write_flamegraph(&mut file, title, self.num_cells(), reverse);
     }
 }
