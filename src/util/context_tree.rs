@@ -1,6 +1,9 @@
-use log::{Level};
+use std::io::{self, Write};
 
-// TODO: Change name
+use inferno::flamegraph::{self, Options};
+use log::Level;
+
+// TODO: Change name - StackTrace?
 // Ref: https://github.com/0xPolygonZero/plonky2/blob/7eff4e2751dea6ef67bd09b184599ff97f509ebf/plonky2/src/util/context_tree.rs
 
 /// The hierarchy of contexts, and the cell count contributed by each one. Useful for debugging.
@@ -124,8 +127,48 @@ impl ContextTree {
             child.print_helper(current_cell_count, depth + 1);
         }
     }
+
+    // Collapse and write
+    pub fn write(&self, buffer: &mut impl Write, current_cell_count: usize) {
+        self.write_helper(buffer, current_cell_count, "");
+    }
+
+    fn write_helper(&self, buffer: &mut impl Write, current_cell_count: usize, prefix: &str) {
+        // TODO: Ugly
+        let full_name = if prefix.is_empty() {
+            if self.name == "root" {
+                String::new()
+            } else {
+                self.name.clone()
+            }
+        } else {
+            format!("{};{}", prefix, self.name)
+        };
+        // Flamegraph operates on the number of samples in the stack
+        let mut count = self.cell_count_delta(current_cell_count);
+        for child in &self.children {
+            child.write_helper(buffer, current_cell_count, full_name.as_str());
+            count -= child.cell_count_delta(current_cell_count);
+        }
+        if !prefix.is_empty() {
+            writeln!(buffer, "{} {}", full_name, count).expect("Failed to write to buffer");
+        }
+    }
+
+    pub fn write_flamegraph(&self, svg_buffer: &mut impl Write, current_cell_count: usize) {
+        let mut buffer = Vec::new();
+        self.write(&mut buffer, current_cell_count);
+        let trace = String::from_utf8(buffer).expect("Failed to convert to string");
+        flamegraph::from_lines(&mut Options::default(), trace.lines(), svg_buffer)
+            .expect("Failed to write flamegraph");
+    }
 }
 
+// TODO: Change this into a proc macro so that it doesn't have to invoked at every call
+//       Eg.
+//       #![time]
+//       fn {}
+//       What's a good way to visualize this? See flamegraph visualizing techniques
 /// Creates a named scope; useful for debugging.
 #[macro_export]
 macro_rules! count {

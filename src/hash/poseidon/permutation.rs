@@ -7,6 +7,7 @@ use plonky2::hash::poseidon::{
     SPONGE_WIDTH,
 };
 
+use crate::count;
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::hash::{PermutationChip, StateWire};
 use crate::util::ContextWrapper;
@@ -291,7 +292,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
             // where we would xor or add in the inputs. This is a well-known variant, though,
             // sometimes called "overwrite mode".
             state.0[..input_chunk.len()].copy_from_slice(input_chunk);
-            state = self.permute(ctx, &state);
+            state = count!(ctx, "permute", self.permute(ctx, &state));
         }
         state
     }

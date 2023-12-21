@@ -58,7 +58,9 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
     // TODO: What if we want to observe a different hash type than the one used by the challenger's hasher chip?
     pub fn observe_hash(&mut self, ctx: &mut ContextWrapper<F>, hash: &impl HashWire<F>) {
         let range = self.range();
-        self.observe_elements(hash.to_goldilocks_vec(ctx, range).as_slice())
+        self.observe_elements(
+            count!(ctx, "observe_elements", hash.to_goldilocks_vec(ctx, range)).as_slice(),
+        )
     }
 
     pub fn observe_cap(
@@ -181,22 +183,42 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
 
         let num_challenges = config.num_challenges;
 
-        self.observe_cap(ctx, trace_cap);
+        count!(ctx, "observe_cap", self.observe_cap(ctx, trace_cap));
 
         let permutation_challenge_sets = permutation_zs_cap.as_ref().map(|permutation_zs_cap| {
-            let tmp = self.get_n_permutation_challenge_sets(
+            let tmp = count!(
                 ctx,
-                num_challenges,
-                stark.permutation_batch_size(),
+                "get_n_permutation_challenge_sets",
+                self.get_n_permutation_challenge_sets(
+                    ctx,
+                    num_challenges,
+                    stark.permutation_batch_size(),
+                )
             );
-            self.observe_cap(ctx, permutation_zs_cap);
+            count!(
+                ctx,
+                "observe_cap",
+                self.observe_cap(ctx, permutation_zs_cap)
+            );
             tmp
         });
 
-        let stark_alphas = self.get_n_challenges(ctx, num_challenges);
+        let stark_alphas = count!(
+            ctx,
+            "get_n_challenges",
+            self.get_n_challenges(ctx, num_challenges)
+        );
 
-        self.observe_cap(ctx, quotient_polys_cap);
-        let stark_zeta = self.get_extension_challenge(ctx);
+        count!(
+            ctx,
+            "observe_cap",
+            self.observe_cap(ctx, quotient_polys_cap)
+        );
+        let stark_zeta = count!(
+            ctx,
+            "get_extension_challenge",
+            self.get_extension_challenge(ctx)
+        );
 
         self.observe_openings(&openings.to_fri_openings());
 

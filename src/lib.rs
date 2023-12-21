@@ -9,3 +9,5 @@ pub mod merkle;
 pub mod stark;
 pub mod util;
 pub mod witness;
+
+// TODO: Benchmark real proving, criterion, ppfrof, flamegraph, etc.

@@ -11,6 +11,7 @@ use plonky2x::backend::wrapper::poseidon_bn128_constants::{
 };
 use plonky2x::backend::wrapper::utils::Fr as Fr_plonky2x;
 
+use crate::count;
 use crate::goldilocks::base::GoldilocksWire;
 use crate::hash::{PermutationChip, StateWire};
 use crate::util::ContextWrapper;
@@ -216,7 +217,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
                     GoldilocksField::BITS,
                 );
             }
-            state = self.permute(ctx, &state);
+            state = count!(ctx, "permute", self.permute(ctx, &state));
         }
 
         state

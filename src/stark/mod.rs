@@ -531,6 +531,7 @@ mod tests {
             );
 
             ctx.print_cell_counts(0);
+            ctx.write_cell_counts_flamegraph("profile/flamegraph.svg", 0);
         });
 
         Ok(())

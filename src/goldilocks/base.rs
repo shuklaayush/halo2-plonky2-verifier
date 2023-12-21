@@ -164,6 +164,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
             .unwrap()
     }
 
+    // TODO: Barrel shifter? Merkle tree like select?
     pub fn select_from_idx(
         &self,
         ctx: &mut ContextWrapper<F>,
