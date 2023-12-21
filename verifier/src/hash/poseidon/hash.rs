@@ -6,8 +6,9 @@ use plonky2::field::types::Field;
 use plonky2::hash::hash_types::{HashOut, NUM_HASH_OUT_ELTS};
 use plonky2::hash::poseidon::{PoseidonHash, SPONGE_WIDTH};
 
+use verifier_macro::count;
+
 use super::permutation::{PoseidonPermutationChip, PoseidonStateWire};
-use crate::count;
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
@@ -75,6 +76,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         &self.permutation_chip
     }
 
+    #[count]
     fn load_constant(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -92,6 +94,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         }
     }
 
+    #[count]
     fn load_goldilocks_slice(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -107,6 +110,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         }
     }
 
+    #[count]
     fn select(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -120,6 +124,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         }
     }
 
+    #[count]
     fn select_from_idx(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -139,6 +144,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         }
     }
 
+    #[count]
     fn assert_equal(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -151,6 +157,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         }
     }
 
+    #[count]
     fn hash_no_pad(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -176,6 +183,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
     }
 
     // TODO: Dedup by reusing hash_no_pad
+    #[count]
     fn two_to_one(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -194,7 +202,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
         state.0[NUM_HASH_OUT_ELTS..2 * NUM_HASH_OUT_ELTS]
             .copy_from_slice(right.elements.as_slice());
 
-        state = count!(ctx, "permute", permutation_chip.permute(ctx, &state));
+        state = permutation_chip.permute(ctx, &state);
 
         // TODO: Fix
         PoseidonHashWire {

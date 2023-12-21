@@ -8,8 +8,9 @@ use plonky2::plonk::config::GenericHashOut;
 use plonky2x::backend::wrapper::plonky2_config::{PoseidonBN128Hash, PoseidonBN128HashOut};
 use plonky2x::backend::wrapper::poseidon_bn128::WIDTH;
 
+use verifier_macro::count;
+
 use super::permutation::{PoseidonBN254PermutationChip, PoseidonBN254StateWire};
-use crate::count;
 use crate::goldilocks::base::GoldilocksWire;
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
@@ -26,6 +27,7 @@ pub struct PoseidonBN254HashWire<F: BigPrimeField> {
 }
 
 impl<F: BigPrimeField> HashWire<F> for PoseidonBN254HashWire<F> {
+    #[count]
     fn to_goldilocks_vec(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -77,6 +79,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         &self.permutation_chip
     }
 
+    #[count]
     fn load_constant(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -86,6 +89,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         PoseidonBN254HashWire { value }
     }
 
+    #[count]
     fn load_goldilocks_slice(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -101,6 +105,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         }
     }
 
+    #[count]
     fn select(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -113,6 +118,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         PoseidonBN254HashWire { value }
     }
 
+    #[count]
     fn select_from_idx(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -124,6 +130,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         PoseidonBN254HashWire { value }
     }
 
+    #[count]
     fn assert_equal(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -133,6 +140,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         ctx.ctx.constrain_equal(&a.value, &b.value);
     }
 
+    #[count]
     fn hash_no_pad(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -157,6 +165,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
     }
 
     // TODO: Dedup by reusing hash_no_pad
+    #[count]
     fn two_to_one(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -177,7 +186,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         state.0[2] = left.value;
         state.0[3] = right.value;
 
-        state = count!(ctx, "permute", permutation_chip.permute(ctx, &state));
+        state = permutation_chip.permute(ctx, &state);
 
         PoseidonBN254HashWire {
             value: permutation_chip.squeeze(&state)[0],

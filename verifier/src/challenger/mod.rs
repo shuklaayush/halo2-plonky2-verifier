@@ -6,7 +6,8 @@ use starky::config::StarkConfig;
 use starky::permutation::{PermutationChallenge, PermutationChallengeSet};
 use starky::stark::Stark;
 
-use crate::count;
+use verifier_macro::count;
+
 use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoeffsExtWire};
 use crate::goldilocks::base::GoldilocksWire;
 use crate::goldilocks::extension::GoldilocksQuadExtWire;
@@ -56,13 +57,13 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
     }
 
     // TODO: What if we want to observe a different hash type than the one used by the challenger's hasher chip?
+    #[count]
     pub fn observe_hash(&mut self, ctx: &mut ContextWrapper<F>, hash: &impl HashWire<F>) {
         let range = self.range();
-        self.observe_elements(
-            count!(ctx, "observe_elements", hash.to_goldilocks_vec(ctx, range)).as_slice(),
-        )
+        self.observe_elements(hash.to_goldilocks_vec(ctx, range).as_slice())
     }
 
+    #[count]
     pub fn observe_cap(
         &mut self,
         ctx: &mut ContextWrapper<F>,
@@ -89,6 +90,7 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
         }
     }
 
+    #[count]
     pub fn get_challenge(&mut self, ctx: &mut ContextWrapper<F>) -> GoldilocksWire<F> {
         self.absorb_buffered_inputs(ctx);
 
@@ -106,6 +108,7 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
             .expect("Output buffer should be non-empty")
     }
 
+    #[count]
     pub fn get_n_challenges(
         &mut self,
         ctx: &mut ContextWrapper<F>,
@@ -114,6 +117,7 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
         (0..n).map(|_| self.get_challenge(ctx)).collect()
     }
 
+    #[count]
     pub fn get_extension_challenge(
         &mut self,
         ctx: &mut ContextWrapper<F>,
@@ -122,6 +126,7 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
         GoldilocksQuadExtWire(self.get_n_challenges(ctx, 2).try_into().unwrap())
     }
 
+    #[count]
     pub fn get_fri_challenges(
         &mut self,
         ctx: &mut ContextWrapper<F>,
@@ -160,6 +165,7 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
         }
     }
 
+    #[count]
     pub fn get_stark_challenges<S: Stark<GoldilocksField, 2>>(
         &mut self,
         ctx: &mut ContextWrapper<F>,
@@ -183,42 +189,22 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
 
         let num_challenges = config.num_challenges;
 
-        count!(ctx, "observe_cap", self.observe_cap(ctx, trace_cap));
+        self.observe_cap(ctx, trace_cap);
 
         let permutation_challenge_sets = permutation_zs_cap.as_ref().map(|permutation_zs_cap| {
-            let tmp = count!(
+            let tmp = self.get_n_permutation_challenge_sets(
                 ctx,
-                "get_n_permutation_challenge_sets",
-                self.get_n_permutation_challenge_sets(
-                    ctx,
-                    num_challenges,
-                    stark.permutation_batch_size(),
-                )
+                num_challenges,
+                stark.permutation_batch_size(),
             );
-            count!(
-                ctx,
-                "observe_cap",
-                self.observe_cap(ctx, permutation_zs_cap)
-            );
+            self.observe_cap(ctx, permutation_zs_cap);
             tmp
         });
 
-        let stark_alphas = count!(
-            ctx,
-            "get_n_challenges",
-            self.get_n_challenges(ctx, num_challenges)
-        );
+        let stark_alphas = self.get_n_challenges(ctx, num_challenges);
 
-        count!(
-            ctx,
-            "observe_cap",
-            self.observe_cap(ctx, quotient_polys_cap)
-        );
-        let stark_zeta = count!(
-            ctx,
-            "get_extension_challenge",
-            self.get_extension_challenge(ctx)
-        );
+        self.observe_cap(ctx, quotient_polys_cap);
+        let stark_zeta = self.get_extension_challenge(ctx);
 
         self.observe_openings(&openings.to_fri_openings());
 
@@ -226,20 +212,17 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
             permutation_challenge_sets,
             stark_alphas,
             stark_zeta,
-            fri_challenges: count!(
+            fri_challenges: self.get_fri_challenges(
                 ctx,
-                "get_fri_challenges",
-                self.get_fri_challenges(
-                    ctx,
-                    commit_phase_merkle_caps,
-                    final_poly,
-                    pow_witness,
-                    &config.fri_config,
-                )
+                commit_phase_merkle_caps,
+                final_poly,
+                pow_witness,
+                &config.fri_config,
             ),
         }
     }
 
+    #[count]
     fn get_permutation_challenge(
         &mut self,
         ctx: &mut ContextWrapper<F>,
@@ -249,6 +232,7 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
         PermutationChallenge { beta, gamma }
     }
 
+    #[count]
     fn get_permutation_challenge_set(
         &mut self,
         ctx: &mut ContextWrapper<F>,
@@ -260,6 +244,7 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
         PermutationChallengeSet { challenges }
     }
 
+    #[count]
     fn get_n_permutation_challenge_sets(
         &mut self,
         ctx: &mut ContextWrapper<F>,
@@ -273,6 +258,7 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
 
     /// Absorb any buffered inputs. After calling this, the input buffer will be empty, and the
     /// output buffer will be full.
+    #[count]
     fn absorb_buffered_inputs(&mut self, ctx: &mut ContextWrapper<F>) {
         // TODO: This is some weird error.
         // let permutation_chip = self.permutation_chip();

@@ -7,7 +7,8 @@ use plonky2::hash::poseidon::{
     SPONGE_WIDTH,
 };
 
-use crate::count;
+use verifier_macro::count;
+
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::hash::{PermutationChip, StateWire};
 use crate::util::ContextWrapper;
@@ -40,6 +41,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         &self.goldilocks_chip
     }
 
+    #[count]
     fn mds_row_shf(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -72,6 +74,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
     }
 
     // TODO: Why not mutate state?
+    #[count]
     fn mds_layer(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -88,6 +91,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         result.into()
     }
 
+    #[count]
     fn partial_first_constant_layer(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -106,6 +110,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         }
     }
 
+    #[count]
     fn mds_partial_layer_init(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -132,6 +137,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         result.into()
     }
 
+    #[count]
     fn mds_partial_layer_fast(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -172,6 +178,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         result.into()
     }
 
+    #[count]
     fn constant_layer(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -191,6 +198,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         }
     }
 
+    #[count]
     fn sbox_monomial(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -204,12 +212,14 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         chip.mul(ctx, &x6, x)
     }
 
+    #[count]
     fn sbox_layer(&self, ctx: &mut ContextWrapper<F>, state: &mut PoseidonStateWire<F>) {
         for i in 0..SPONGE_WIDTH {
             state.0[i] = self.sbox_monomial(ctx, &state.0[i]);
         }
     }
 
+    #[count]
     fn partial_rounds(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -234,6 +244,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         *round_ctr += N_PARTIAL_ROUNDS;
     }
 
+    #[count]
     fn full_rounds(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -292,7 +303,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
             // where we would xor or add in the inputs. This is a well-known variant, though,
             // sometimes called "overwrite mode".
             state.0[..input_chunk.len()].copy_from_slice(input_chunk);
-            state = count!(ctx, "permute", self.permute(ctx, &state));
+            state = self.permute(ctx, &state);
         }
         state
     }

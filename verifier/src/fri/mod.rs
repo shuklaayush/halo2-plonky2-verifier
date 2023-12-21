@@ -9,7 +9,8 @@ use plonky2::fri::{FriConfig, FriParams};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::util::{log2_strict, reverse_index_bits_in_place};
 
-use crate::count;
+use verifier_macro::count;
+
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire};
 use crate::goldilocks::BoolWire;
@@ -42,6 +43,7 @@ pub struct PrecomputedReducedOpeningsWire<F: BigPrimeField> {
 }
 
 impl<F: BigPrimeField> PrecomputedReducedOpeningsWire<F> {
+    #[count]
     fn from_os_and_alpha(
         ctx: &mut ContextWrapper<F>,
         extension_chip: &GoldilocksQuadExtChip<F>,
@@ -125,6 +127,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         &self.merkle_tree_chip
     }
 
+    #[count]
     fn verify_proof_of_work(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -141,6 +144,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         );
     }
 
+    #[count]
     fn verify_initial_proof(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -162,6 +166,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         }
     }
 
+    #[count]
     fn combine_initial(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -214,6 +219,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         sum
     }
 
+    #[count]
     fn interpolate_coset(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -276,6 +282,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
             .0
     }
 
+    #[count]
     fn compute_evaluation(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -314,6 +321,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         self.interpolate_coset(ctx, &coset_start, &evals, beta)
     }
 
+    #[count]
     fn eval_scalar(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -326,6 +334,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         extension_chip.reduce_with_powers(ctx, poly.0.as_slice(), &point)
     }
 
+    #[count]
     fn verify_query_round(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -357,16 +366,12 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
             ctx,
             &x_index_bits[x_index_bits.len() - params.config.cap_height..],
         );
-        count!(
+        self.verify_initial_proof(
             ctx,
-            "verify_initial_proof",
-            self.verify_initial_proof(
-                ctx,
-                &x_index_bits,
-                &round_proof.initial_trees_proof,
-                initial_merkle_caps,
-                &cap_index,
-            )
+            &x_index_bits,
+            &round_proof.initial_trees_proof,
+            initial_merkle_caps,
+            &cap_index,
         );
 
         // `subgroup_x` is `subgroup[x_index]`, i.e., the actual field element in the domain.
@@ -421,17 +426,13 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
                 challenges.fri_betas[i],
             );
 
-            count!(
+            self.merkle_tree_chip.verify_proof_to_cap_with_cap_index(
                 ctx,
-                "verify_proof_to_cap_with_cap_index",
-                self.merkle_tree_chip.verify_proof_to_cap_with_cap_index(
-                    ctx,
-                    &evals.iter().flat_map(|x| x.0).collect_vec(),
-                    &coset_index_bits,
-                    &cap_index,
-                    &proof.commit_phase_merkle_caps[i],
-                    &round_proof.steps[i].merkle_proof,
-                )
+                &evals.iter().flat_map(|x| x.0).collect_vec(),
+                &coset_index_bits,
+                &cap_index,
+                &proof.commit_phase_merkle_caps[i],
+                &round_proof.steps[i].merkle_proof,
             );
 
             // Update the point x to x^arity.
@@ -446,6 +447,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         extension_chip.assert_equal(ctx, &eval, &old_eval);
     }
 
+    #[count]
     pub fn verify_fri_proof(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -471,11 +473,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         // Size of the LDE domain.
         let n = params.lde_size();
 
-        count!(
-            ctx,
-            "verify_proof_of_work",
-            self.verify_proof_of_work(ctx, challenges.fri_pow_response, &params.config)
-        );
+        self.verify_proof_of_work(ctx, challenges.fri_pow_response, &params.config);
 
         // Check that parameters are coherent.
         debug_assert_eq!(
@@ -492,21 +490,17 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         );
 
         for (i, round_proof) in proof.query_round_proofs.iter().enumerate() {
-            count!(
+            self.verify_query_round(
                 ctx,
-                "verify_query_round",
-                self.verify_query_round(
-                    ctx,
-                    instance,
-                    challenges,
-                    &precomputed_reduced_evals,
-                    initial_merkle_caps,
-                    proof,
-                    challenges.fri_query_indices[i],
-                    n,
-                    round_proof,
-                    params,
-                )
+                instance,
+                challenges,
+                &precomputed_reduced_evals,
+                initial_merkle_caps,
+                proof,
+                challenges.fri_query_indices[i],
+                n,
+                round_proof,
+                params,
             );
         }
     }

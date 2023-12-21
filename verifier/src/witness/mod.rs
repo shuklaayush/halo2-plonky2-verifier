@@ -11,6 +11,8 @@ use plonky2::{
 };
 use starky::proof::{StarkOpeningSet, StarkProof, StarkProofWithPublicInputs};
 
+use verifier_macro::count;
+
 use crate::{
     fri::{
         FriInitialTreeProofWire, FriOpeningBatchWire, FriOpeningsWire, FriProofWire,
@@ -46,10 +48,12 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         &self.goldilocks_chip
     }
 
+    #[count]
     fn load(&self, ctx: &mut ContextWrapper<F>, value: GoldilocksField) -> GoldilocksWire<F> {
         self.goldilocks_chip().load_constant(ctx, value)
     }
 
+    #[count]
     fn load_hash(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -58,6 +62,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         self.hasher_chip.load_constant(ctx, value)
     }
 
+    #[count]
     fn load_cap(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -72,6 +77,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         )
     }
 
+    #[count]
     fn load_array(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -83,6 +89,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
             .collect_vec()
     }
 
+    #[count]
     fn load_extension(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -92,6 +99,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         GoldilocksQuadExtWire(self.load_array(ctx, &values).try_into().unwrap())
     }
 
+    #[count]
     fn load_extensions(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -103,6 +111,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
             .collect_vec()
     }
 
+    #[count]
     fn load_fri_openings(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -120,6 +129,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
     }
 
     // TODO: Plonky2 only constraints equality of .to_fri_openings() instead of whole struct
+    #[count]
     fn load_openings_set(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -139,6 +149,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         }
     }
 
+    #[count]
     pub fn load_fri_proof(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -224,6 +235,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         }
     }
 
+    #[count]
     pub fn load_proof(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -255,6 +267,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         }
     }
 
+    #[count]
     pub fn load_proof_with_pis(
         &self,
         ctx: &mut ContextWrapper<F>,

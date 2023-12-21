@@ -1,6 +1,6 @@
-use std::io::{self, Write};
+use std::io::Write;
 
-use inferno::flamegraph::{self, Options};
+use inferno::flamegraph::{self, Direction, Options};
 use log::Level;
 
 // TODO: Change name - StackTrace?
@@ -150,7 +150,7 @@ impl ContextTree {
             child.write_helper(buffer, current_cell_count, full_name.as_str());
             count -= child.cell_count_delta(current_cell_count);
         }
-        if !prefix.is_empty() {
+        if !prefix.is_empty() || self.name != "root" {
             writeln!(buffer, "{} {}", full_name, count).expect("Failed to write to buffer");
         }
     }
@@ -158,8 +158,16 @@ impl ContextTree {
     pub fn write_flamegraph(&self, svg_buffer: &mut impl Write, current_cell_count: usize) {
         let mut buffer = Vec::new();
         self.write(&mut buffer, current_cell_count);
+        // TODO: Is there a way to iterate over the lines without allocating a string?
         let trace = String::from_utf8(buffer).expect("Failed to convert to string");
-        flamegraph::from_lines(&mut Options::default(), trace.lines(), svg_buffer)
+
+        let mut options = Options::default();
+        options.title = "Advice Cells".to_string();
+        options.count_name = "cells".to_string();
+        options.direction = Direction::Inverted;
+        options.reverse_stack_order = true;
+
+        flamegraph::from_lines(&mut options, trace.lines(), svg_buffer)
             .expect("Failed to write flamegraph");
     }
 }

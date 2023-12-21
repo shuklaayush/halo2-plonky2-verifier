@@ -15,9 +15,10 @@ use starky::{
     stark::Stark,
 };
 
+use verifier_macro::count;
+
 use crate::{
     challenger::ChallengerChip,
-    count,
     fri::{
         FriBatchInfoWire, FriChallengesWire, FriChip, FriInstanceInfoWire, FriOpeningBatchWire,
         FriOpeningsWire, FriProofWire,
@@ -230,6 +231,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
         )
     }
 
+    #[count]
     pub fn verify_proof_with_challenges<S: Stark<GoldilocksField, 2>>(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -334,21 +336,18 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
             GoldilocksField::primitive_root_of_unity(degree_bits),
             inner_config,
         );
-        count!(
+        self.fri_chip.verify_fri_proof(
             ctx,
-            "verify_fri_proof",
-            self.fri_chip.verify_fri_proof(
-                ctx,
-                &fri_instance,
-                &proof.openings.to_fri_openings(),
-                &challenges.fri_challenges,
-                &merkle_caps,
-                &proof.opening_proof,
-                &inner_config.fri_params(degree_bits),
-            )
+            &fri_instance,
+            &proof.openings.to_fri_openings(),
+            &challenges.fri_challenges,
+            &merkle_caps,
+            &proof.opening_proof,
+            &inner_config.fri_params(degree_bits),
         );
     }
 
+    #[count]
     pub fn verify_proof<S: Stark<GoldilocksField, 2>>(
         &mut self, // TODO: Make this immutable
         ctx: &mut ContextWrapper<F>,
@@ -361,28 +360,20 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
     {
         assert_eq!(proof_with_pis.public_inputs.len(), S::PUBLIC_INPUTS);
         let degree_bits = proof_with_pis.proof.recover_degree_bits(inner_config);
-        let challenges = count!(
+        let challenges = self.challenger_chip.get_stark_challenges::<S>(
             ctx,
-            "get_stark_challenges",
-            self.challenger_chip.get_stark_challenges::<S>(
-                ctx,
-                &proof_with_pis.proof,
-                &stark,
-                inner_config,
-            )
+            &proof_with_pis.proof,
+            &stark,
+            inner_config,
         );
 
-        count!(
+        self.verify_proof_with_challenges::<S>(
             ctx,
-            "verify_proof_with_challenges",
-            self.verify_proof_with_challenges::<S>(
-                ctx,
-                stark,
-                proof_with_pis,
-                challenges,
-                inner_config,
-                degree_bits,
-            )
+            stark,
+            proof_with_pis,
+            challenges,
+            inner_config,
+            degree_bits,
         );
     }
 }
@@ -403,7 +394,6 @@ mod tests {
     use starky::prover::prove;
     use starky::verifier::verify_stark_proof;
 
-    use crate::count;
     use crate::goldilocks::base::GoldilocksChip;
     use crate::hash::poseidon::hash::PoseidonChip;
     use crate::hash::poseidon_bn254::hash::PoseidonBN254Chip;
@@ -456,19 +446,10 @@ mod tests {
 
             let witness_chip = WitnessChip::new(goldilocks_chip, poseidon_chip);
 
-            let proof_with_pis = count!(
-                ctx,
-                "load_proof_with_pis",
-                witness_chip.load_proof_with_pis(ctx, proof_with_pis)
-            );
+            let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
 
-            count!(
-                ctx,
-                "verify_proof",
-                stark_chip.verify_proof(ctx, stark, proof_with_pis, &config)
-            );
-
-            ctx.print_cell_counts(0);
+            stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
+            ctx.write_cell_counts_flamegraph("profile/flamegraph.svg", 0);
         });
 
         Ok(())
@@ -518,19 +499,10 @@ mod tests {
 
             let witness_chip = WitnessChip::new(goldilocks_chip, poseidon_bn254_chip);
 
-            let proof_with_pis = count!(
-                ctx,
-                "load_proof_with_pis",
-                witness_chip.load_proof_with_pis(ctx, proof_with_pis)
-            );
+            let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
 
-            count!(
-                ctx,
-                "verify_proof",
-                stark_chip.verify_proof(ctx, stark, proof_with_pis, &config)
-            );
+            stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
 
-            ctx.print_cell_counts(0);
             ctx.write_cell_counts_flamegraph("profile/flamegraph.svg", 0);
         });
 

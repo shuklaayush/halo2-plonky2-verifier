@@ -1,0 +1,11 @@
+[package]
+name = "verifier_macro"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0", features = ["extra-traits", "full", "fold", "parsing"] }
+quote = { version = "1.0" }

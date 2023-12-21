@@ -1,8 +1,8 @@
+use halo2_base::utils::BigPrimeField;
 use std::marker::PhantomData;
 
-use halo2_base::utils::BigPrimeField;
+use verifier_macro::count;
 
-use crate::count;
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
@@ -54,6 +54,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
         &self.hasher_chip
     }
 
+    #[count]
     pub fn verify_proof_to_cap_with_cap_index(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -65,20 +66,12 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
     ) {
         let hasher_chip = self.hasher_chip();
 
-        let mut node = count!(
-            ctx,
-            "hash_or_noop",
-            hasher_chip.hash_or_noop(ctx, leaf_data)
-        );
+        let mut node = hasher_chip.hash_or_noop(ctx, leaf_data);
         for (&sibling, bit) in proof.siblings.iter().zip(leaf_index_bits.iter()) {
             // TODO: Is there a more efficient to way to select both at once?
             let left = hasher_chip.select(ctx, &sibling, &node, bit);
             let right = hasher_chip.select(ctx, &node, &sibling, bit);
-            node = count!(
-                ctx,
-                "two_to_one",
-                hasher_chip.two_to_one(ctx, &left, &right)
-            );
+            node = hasher_chip.two_to_one(ctx, &left, &right);
         }
 
         let root = hasher_chip.select_from_idx(ctx, merkle_cap.0.as_slice(), cap_index);
@@ -87,6 +80,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
 
     // TODO: This is effectively checking doing merkle proof for a subtree
     //       Maybe there's a bettter abstraction?
+    #[count]
     pub fn verify_proof_to_cap(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -100,20 +94,17 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
         // leaf_index / 2^(depth - cap_height)
         let cap_index = goldilocks_chip.bits_to_num(ctx, &leaf_index_bits[proof.siblings.len()..]);
 
-        count!(
+        self.verify_proof_to_cap_with_cap_index(
             ctx,
-            "verify_proof_to_cap_with_cap_index(",
-            self.verify_proof_to_cap_with_cap_index(
-                ctx,
-                leaf_data,
-                leaf_index_bits,
-                &cap_index,
-                merkle_cap,
-                proof,
-            )
+            leaf_data,
+            leaf_index_bits,
+            &cap_index,
+            merkle_cap,
+            proof,
         );
     }
 
+    #[count]
     pub fn verify_proof(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -123,11 +114,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
         proof: &MerkleProofWire<F, HC::HashWire>,
     ) {
         let merkle_cap = MerkleCapWire::new(vec![*merkle_root]);
-        count!(
-            ctx,
-            "verify_proof_to_cap",
-            self.verify_proof_to_cap(ctx, leaf_data, leaf_index_bits, &merkle_cap, proof)
-        );
+        self.verify_proof_to_cap(ctx, leaf_data, leaf_index_bits, &merkle_cap, proof);
     }
 }
 

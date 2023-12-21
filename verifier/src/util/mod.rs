@@ -1,6 +1,9 @@
 mod context_tree;
 
-use std::fs::File;
+use std::{
+    fs::{create_dir_all, File},
+    path::Path,
+};
 
 use halo2_base::{utils::ScalarField, Context};
 
@@ -60,8 +63,11 @@ impl<'ctx, F: ScalarField> ContextWrapper<'ctx, F> {
             .write(&mut file, self.num_cells());
     }
 
-    pub fn write_cell_counts_flamegraph(&self, svg_path: &str, min_delta: usize) {
-        let mut file = File::create(svg_path).expect("failed to create file");
+    pub fn write_cell_counts_flamegraph(&self, svg_name: &str, min_delta: usize) {
+        let path = Path::new(svg_name);
+        create_dir_all(path.parent().unwrap()).expect("failed to create directory");
+        let mut file = File::create(path)
+            .expect(format!("Failed to create file: {}", path.to_str().unwrap()).as_str());
 
         self.tree
             .filter(self.num_cells(), min_delta)

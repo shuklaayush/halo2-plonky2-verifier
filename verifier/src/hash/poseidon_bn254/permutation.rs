@@ -11,7 +11,8 @@ use plonky2x::backend::wrapper::poseidon_bn128_constants::{
 };
 use plonky2x::backend::wrapper::utils::Fr as Fr_plonky2x;
 
-use crate::count;
+use verifier_macro::count;
+
 use crate::goldilocks::base::GoldilocksWire;
 use crate::hash::{PermutationChip, StateWire};
 use crate::util::ContextWrapper;
@@ -48,6 +49,7 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         self.range.gate()
     }
 
+    #[count]
     fn exp5(&self, ctx: &mut ContextWrapper<F>, x: AssignedValue<F>) -> AssignedValue<F> {
         let gate = self.gate();
 
@@ -56,12 +58,14 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         gate.mul(ctx.ctx, x4, x)
     }
 
+    #[count]
     fn exp5_state(&self, ctx: &mut ContextWrapper<F>, state: &mut PoseidonBN254StateWire<F>) {
         for i in 0..WIDTH {
             state.0[i] = self.exp5(ctx, state.0[i]);
         }
     }
 
+    #[count]
     fn mix(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -81,6 +85,7 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         state.0 = new_state;
     }
 
+    #[count]
     fn partial_rounds(&self, ctx: &mut ContextWrapper<F>, state: &mut PoseidonBN254StateWire<F>) {
         let gate = self.gate();
         for i in 0..PARTIAL_ROUNDS {
@@ -109,6 +114,7 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         }
     }
 
+    #[count]
     fn full_rounds(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -157,6 +163,7 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         }
     }
 
+    #[count]
     fn ark(&self, ctx: &mut ContextWrapper<F>, state: &mut PoseidonBN254StateWire<F>, it: usize) {
         let gate = self.gate();
 
@@ -217,7 +224,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
                     GoldilocksField::BITS,
                 );
             }
-            state = count!(ctx, "permute", self.permute(ctx, &state));
+            state = self.permute(ctx, &state);
         }
 
         state

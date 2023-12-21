@@ -7,6 +7,8 @@ use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::{Field, Field64, PrimeField64};
 
+use verifier_macro::count;
+
 use crate::util::ContextWrapper;
 
 use super::BoolWire;
@@ -73,6 +75,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
 
     // TODO: Keep a track of constants loaded to avoid loading them multiple times?
     //       Maybe do range check
+    #[count]
     pub fn load_constant(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -82,18 +85,22 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         GoldilocksWire(ctx.ctx.load_constant(F::from(a)))
     }
 
+    #[count]
     pub fn load_zero(&self, ctx: &mut ContextWrapper<F>) -> GoldilocksWire<F> {
         self.load_constant(ctx, GoldilocksField::ZERO)
     }
 
+    #[count]
     pub fn load_one(&self, ctx: &mut ContextWrapper<F>) -> GoldilocksWire<F> {
         self.load_constant(ctx, GoldilocksField::ONE)
     }
 
+    #[count]
     pub fn load_neg_one(&self, ctx: &mut ContextWrapper<F>) -> GoldilocksWire<F> {
         self.load_constant(ctx, GoldilocksField::NEG_ONE)
     }
 
+    #[count]
     pub fn load_constant_array<const N: usize>(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -107,6 +114,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     }
 
     // TODO: Only vec?
+    #[count]
     pub fn load_constant_slice(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -115,6 +123,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         a.iter().map(|a| self.load_constant(ctx, *a)).collect_vec()
     }
 
+    #[count]
     pub fn load_constant_vec(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -123,6 +132,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         a.iter().map(|a| self.load_constant(ctx, *a)).collect_vec()
     }
 
+    #[count]
     pub fn load_witness(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -135,6 +145,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         wire
     }
 
+    #[count]
     pub fn select(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -147,6 +158,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         GoldilocksWire(gate.select(ctx.ctx, a.0, b.0, sel.0))
     }
 
+    #[count]
     pub fn select_array<const N: usize>(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -180,6 +192,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         ))
     }
 
+    #[count]
     pub fn select_array_from_idx<const N: usize>(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -206,6 +219,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
             .unwrap()
     }
 
+    #[count]
     pub fn num_to_bits(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -218,6 +232,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         native_bits.iter().map(|&x| BoolWire(x)).collect::<Vec<_>>()
     }
 
+    #[count]
     pub fn bits_to_num(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -232,11 +247,13 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         ))
     }
 
+    #[count]
     pub fn neg(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
         let neg_one = self.load_neg_one(ctx);
         self.mul(ctx, a, &neg_one)
     }
 
+    #[count]
     pub fn add_no_reduce(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -247,6 +264,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         GoldilocksWire(gate.add(ctx.ctx, a.0, b.0))
     }
 
+    #[count]
     pub fn add(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -257,6 +275,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         self.reduce(ctx, &sum)
     }
 
+    #[count]
     pub fn sub_no_reduce(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -268,6 +287,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         GoldilocksWire(gate.mul_add(ctx.ctx, b.0, neg_one.0, a.0))
     }
 
+    #[count]
     pub fn sub(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -278,6 +298,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         self.reduce(ctx, &diff)
     }
 
+    #[count]
     pub fn mul_no_reduce(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -288,6 +309,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         GoldilocksWire(gate.mul(ctx.ctx, a.0, b.0))
     }
 
+    #[count]
     pub fn mul(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -298,6 +320,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         self.reduce(ctx, &prod)
     }
 
+    #[count]
     pub fn mul_add_no_reduce(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -309,6 +332,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         GoldilocksWire(gate.mul_add(ctx.ctx, a.0, b.0, c.0))
     }
 
+    #[count]
     pub fn mul_add(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -321,6 +345,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     }
 
     // TODO: Can I use a custom gate here?
+    #[count]
     pub fn mul_sub(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -334,6 +359,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     }
 
     // TODO: Only supports reduction upto p * (p - 1) i.e. max value of a mul_add
+    #[count]
     pub fn reduce(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
         // 1. Calculate hint
         let val = fe_to_biguint(a.value_raw());
@@ -357,6 +383,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         remainder
     }
 
+    #[count]
     pub fn inv(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
         // 1. Calculate hint
         let inverse = a.value().inverse();
@@ -374,6 +401,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     }
 
     // TODO: Change to div_add?
+    #[count]
     pub fn div(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -397,11 +425,13 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         res
     }
 
+    #[count]
     pub fn square(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
         self.mul(ctx, a, a)
     }
 
     // TODO: Lazy reduction?
+    #[count]
     pub fn exp_from_bits_const_base(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -427,6 +457,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     }
 
     // TODO: Lazy reduction?
+    #[count]
     pub fn exp_power_of_2(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -440,6 +471,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         product
     }
 
+    #[count]
     pub fn assert_equal(
         &self,
         ctx: &mut ContextWrapper<F>,
@@ -449,6 +481,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         ctx.ctx.constrain_equal(&a.0, &b.0);
     }
 
+    #[count]
     pub fn range_check(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) {
         let range = self.range();
         range.check_less_than_safe(ctx.ctx, a.0, GoldilocksField::ORDER);
