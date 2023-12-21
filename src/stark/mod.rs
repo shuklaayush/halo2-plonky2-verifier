@@ -1,6 +1,6 @@
 use anyhow::{ensure, Result};
 use core::iter::once;
-use halo2_base::{utils::BigPrimeField, Context};
+use halo2_base::utils::BigPrimeField;
 use itertools::Itertools;
 use plonky2::{
     field::{
@@ -17,6 +17,7 @@ use starky::{
 
 use crate::{
     challenger::ChallengerChip,
+    count,
     fri::{
         FriBatchInfoWire, FriChallengesWire, FriChip, FriInstanceInfoWire, FriOpeningBatchWire,
         FriOpeningsWire, FriProofWire,
@@ -27,7 +28,7 @@ use crate::{
     },
     hash::{HashWire, HasherChip, PermutationChip},
     merkle::MerkleCapWire,
-    num_advice,
+    util::ContextWrapper,
 };
 
 pub struct PermutationCheckDataWire<F: BigPrimeField> {
@@ -146,7 +147,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
     /// Computes the FRI instance used to prove this Stark.
     fn fri_instance_info<S: Stark<GoldilocksField, 2>>(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         stark: S,
         zeta: GoldilocksQuadExtWire<F>,
         g: GoldilocksField,
@@ -203,7 +204,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
 
     fn eval_l_0_and_l_last_circuit(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         log_n: usize,
         x: GoldilocksQuadExtWire<F>,
         z_x: GoldilocksQuadExtWire<F>,
@@ -231,7 +232,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
 
     pub fn verify_proof_with_challenges<S: Stark<GoldilocksField, 2>>(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         stark: S,
         proof_with_pis: StarkProofWithPublicInputsWire<F, HC::HashWire>,
         challenges: StarkProofChallengesWire<F>,
@@ -333,9 +334,9 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
             GoldilocksField::primitive_root_of_unity(degree_bits),
             inner_config,
         );
-        num_advice!(
+        count!(
             ctx,
-            "fri_chip.verify_fri_proof",
+            "verify_fri_proof",
             self.fri_chip.verify_fri_proof(
                 ctx,
                 &fri_instance,
@@ -350,7 +351,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
 
     pub fn verify_proof<S: Stark<GoldilocksField, 2>>(
         &mut self, // TODO: Make this immutable
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         stark: S,
         proof_with_pis: StarkProofWithPublicInputsWire<F, HC::HashWire>,
         inner_config: &StarkConfig,
@@ -360,9 +361,9 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
     {
         assert_eq!(proof_with_pis.public_inputs.len(), S::PUBLIC_INPUTS);
         let degree_bits = proof_with_pis.proof.recover_degree_bits(inner_config);
-        let challenges = num_advice!(
+        let challenges = count!(
             ctx,
-            "challenger_chip.get_stark_challenges",
+            "get_stark_challenges",
             self.challenger_chip.get_stark_challenges::<S>(
                 ctx,
                 &proof_with_pis.proof,
@@ -371,9 +372,9 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
             )
         );
 
-        num_advice!(
+        count!(
             ctx,
-            "stark_chip.verify_proof_with_challenges",
+            "verify_proof_with_challenges",
             self.verify_proof_with_challenges::<S>(
                 ctx,
                 stark,
@@ -402,6 +403,7 @@ mod tests {
     use starky::prover::prove;
     use starky::verifier::verify_stark_proof;
 
+    use crate::count;
     use crate::goldilocks::base::GoldilocksChip;
     use crate::hash::poseidon::hash::PoseidonChip;
     use crate::hash::poseidon_bn254::hash::PoseidonBN254Chip;
@@ -436,6 +438,9 @@ mod tests {
         verify_stark_proof(stark, proof_with_pis.clone(), &config)?;
 
         base_test().k(22).run(|ctx, range| {
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
@@ -451,9 +456,19 @@ mod tests {
 
             let witness_chip = WitnessChip::new(goldilocks_chip, poseidon_chip);
 
-            let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
+            let proof_with_pis = count!(
+                ctx,
+                "load_proof_with_pis",
+                witness_chip.load_proof_with_pis(ctx, proof_with_pis)
+            );
 
-            stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
+            count!(
+                ctx,
+                "verify_proof",
+                stark_chip.verify_proof(ctx, stark, proof_with_pis, &config)
+            );
+
+            ctx.print_cell_counts(0);
         });
 
         Ok(())
@@ -482,6 +497,10 @@ mod tests {
         verify_stark_proof(stark, proof_with_pis.clone(), &config)?;
 
         base_test().k(22).run(|ctx, range| {
+            // TODO: Create a helper for this
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
@@ -499,17 +518,19 @@ mod tests {
 
             let witness_chip = WitnessChip::new(goldilocks_chip, poseidon_bn254_chip);
 
-            let proof_with_pis = num_advice!(
+            let proof_with_pis = count!(
                 ctx,
-                "witness_chip.load_proof_with_pis",
+                "load_proof_with_pis",
                 witness_chip.load_proof_with_pis(ctx, proof_with_pis)
             );
 
-            num_advice!(
+            count!(
                 ctx,
-                "stark_chip.verify_proof",
+                "verify_proof",
                 stark_chip.verify_proof(ctx, stark, proof_with_pis, &config)
             );
+
+            ctx.print_cell_counts(0);
         });
 
         Ok(())

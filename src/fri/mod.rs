@@ -1,6 +1,5 @@
 use halo2_base::gates::{RangeChip, RangeInstructions};
 use halo2_base::utils::BigPrimeField;
-use halo2_base::Context;
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::interpolation::barycentric_weights;
@@ -10,12 +9,13 @@ use plonky2::fri::{FriConfig, FriParams};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::util::{log2_strict, reverse_index_bits_in_place};
 
+use crate::count;
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire};
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::{MerkleCapWire, MerkleProofWire, MerkleTreeChip};
-use crate::num_advice;
+use crate::util::ContextWrapper;
 
 pub struct FriInstanceInfoWire<F: BigPrimeField> {
     pub oracles: Vec<FriOracleInfo>,
@@ -43,7 +43,7 @@ pub struct PrecomputedReducedOpeningsWire<F: BigPrimeField> {
 
 impl<F: BigPrimeField> PrecomputedReducedOpeningsWire<F> {
     fn from_os_and_alpha(
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         extension_chip: &GoldilocksQuadExtChip<F>,
         openings: &FriOpeningsWire<F>,
         alpha: &GoldilocksQuadExtWire<F>,
@@ -127,7 +127,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
     fn verify_proof_of_work(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         fri_pow_response: GoldilocksWire<F>,
         config: &FriConfig,
     ) {
@@ -135,7 +135,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         // Assert `proof_of_work_bits` leading zeros in `fri_pow_response`
         // i.e. max value of `fri_pow_response` is less than `2^(64 - proof_of_work_bits)`
         range_chip.range_check(
-            ctx,
+            ctx.ctx,
             fri_pow_response.0,
             GoldilocksField::BITS - config.proof_of_work_bits as usize,
         );
@@ -143,7 +143,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
     fn verify_initial_proof(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         x_index_bits: &[BoolWire<F>],
         proof: &FriInitialTreeProofWire<F, HC::HashWire>,
         initial_merkle_caps: &[MerkleCapWire<F, HC::HashWire>],
@@ -164,7 +164,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
     fn combine_initial(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         instance: &FriInstanceInfoWire<F>,
         proof: &FriInitialTreeProofWire<F, HC::HashWire>,
         alpha: &GoldilocksQuadExtWire<F>,
@@ -216,7 +216,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
     fn interpolate_coset(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         coset_shift: &GoldilocksWire<F>,
         values: &[GoldilocksQuadExtWire<F>],
         evaluation_point: GoldilocksQuadExtWire<F>,
@@ -278,7 +278,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
     fn compute_evaluation(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         x: &GoldilocksWire<F>,
         x_index_within_coset_bits: &[BoolWire<F>],
         arity_bits: usize,
@@ -316,7 +316,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
     fn eval_scalar(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         poly: &PolynomialCoeffsExtWire<F>,
         point: &GoldilocksWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -328,7 +328,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
     fn verify_query_round(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         instance: &FriInstanceInfoWire<F>,
         challenges: &FriChallengesWire<F>,
         precomputed_reduced_evals: &PrecomputedReducedOpeningsWire<F>,
@@ -357,12 +357,16 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
             ctx,
             &x_index_bits[x_index_bits.len() - params.config.cap_height..],
         );
-        self.verify_initial_proof(
+        count!(
             ctx,
-            &x_index_bits,
-            &round_proof.initial_trees_proof,
-            initial_merkle_caps,
-            &cap_index,
+            "verify_initial_proof",
+            self.verify_initial_proof(
+                ctx,
+                &x_index_bits,
+                &round_proof.initial_trees_proof,
+                initial_merkle_caps,
+                &cap_index,
+            )
         );
 
         // `subgroup_x` is `subgroup[x_index]`, i.e., the actual field element in the domain.
@@ -417,13 +421,17 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
                 challenges.fri_betas[i],
             );
 
-            self.merkle_tree_chip.verify_proof_to_cap_with_cap_index(
+            count!(
                 ctx,
-                &evals.iter().flat_map(|x| x.0).collect_vec(),
-                &coset_index_bits,
-                &cap_index,
-                &proof.commit_phase_merkle_caps[i],
-                &round_proof.steps[i].merkle_proof,
+                "verify_proof_to_cap_with_cap_index",
+                self.merkle_tree_chip.verify_proof_to_cap_with_cap_index(
+                    ctx,
+                    &evals.iter().flat_map(|x| x.0).collect_vec(),
+                    &coset_index_bits,
+                    &cap_index,
+                    &proof.commit_phase_merkle_caps[i],
+                    &round_proof.steps[i].merkle_proof,
+                )
             );
 
             // Update the point x to x^arity.
@@ -440,7 +448,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
 
     pub fn verify_fri_proof(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         instance: &FriInstanceInfoWire<F>,
         openings: &FriOpeningsWire<F>,
         challenges: &FriChallengesWire<F>,
@@ -463,7 +471,11 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         // Size of the LDE domain.
         let n = params.lde_size();
 
-        self.verify_proof_of_work(ctx, challenges.fri_pow_response, &params.config);
+        count!(
+            ctx,
+            "verify_proof_of_work",
+            self.verify_proof_of_work(ctx, challenges.fri_pow_response, &params.config)
+        );
 
         // Check that parameters are coherent.
         debug_assert_eq!(
@@ -480,9 +492,9 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         );
 
         for (i, round_proof) in proof.query_round_proofs.iter().enumerate() {
-            num_advice!(
+            count!(
                 ctx,
-                format!("verify_query_round({})", i),
+                "verify_query_round",
                 self.verify_query_round(
                     ctx,
                     instance,

@@ -1,6 +1,6 @@
 use halo2_base::gates::{GateChip, GateInstructions, RangeChip, RangeInstructions};
 use halo2_base::utils::BigPrimeField;
-use halo2_base::{AssignedValue, Context};
+use halo2_base::AssignedValue;
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
@@ -9,9 +9,11 @@ use plonky2x::backend::wrapper::plonky2_config::{PoseidonBN128Hash, PoseidonBN12
 use plonky2x::backend::wrapper::poseidon_bn128::WIDTH;
 
 use super::permutation::{PoseidonBN254PermutationChip, PoseidonBN254StateWire};
+use crate::count;
 use crate::goldilocks::base::GoldilocksWire;
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
+use crate::util::ContextWrapper;
 
 fn hash_to_fr<F: BigPrimeField>(hash: PoseidonBN128HashOut<GoldilocksField>) -> F {
     F::from_bytes_le(hash.to_bytes().as_slice())
@@ -26,13 +28,13 @@ pub struct PoseidonBN254HashWire<F: BigPrimeField> {
 impl<F: BigPrimeField> HashWire<F> for PoseidonBN254HashWire<F> {
     fn to_goldilocks_vec(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         range: &RangeChip<F>,
     ) -> Vec<GoldilocksWire<F>> {
         // TODO: Move to helper
         range
             // TODO: No hardcode
-            .decompose_le(ctx, self.value, 56, 5)
+            .decompose_le(ctx.ctx, self.value, 56, 5)
             .iter()
             .map(|&x| GoldilocksWire(x))
             .collect_vec()
@@ -77,22 +79,22 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
 
     fn load_constant(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         h: PoseidonBN128HashOut<GoldilocksField>,
     ) -> PoseidonBN254HashWire<F> {
-        let value = ctx.load_constant(hash_to_fr(h));
+        let value = ctx.ctx.load_constant(hash_to_fr(h));
         PoseidonBN254HashWire { value }
     }
 
     fn load_goldilocks_slice(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         elements: &[GoldilocksWire<F>],
     ) -> PoseidonBN254HashWire<F> {
         let range = self.range();
         PoseidonBN254HashWire {
             value: range.limbs_to_num(
-                ctx,
+                ctx.ctx,
                 elements.iter().map(|x| x.0).collect_vec().as_slice(),
                 GoldilocksField::BITS,
             ),
@@ -101,45 +103,49 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
 
     fn select(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &PoseidonBN254HashWire<F>,
         b: &PoseidonBN254HashWire<F>,
         sel: &BoolWire<F>,
     ) -> PoseidonBN254HashWire<F> {
         let gate = self.gate();
-        let value = gate.select(ctx, a.value, b.value, sel.0);
+        let value = gate.select(ctx.ctx, a.value, b.value, sel.0);
         PoseidonBN254HashWire { value }
     }
 
     fn select_from_idx(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         arr: &[PoseidonBN254HashWire<F>],
         idx: &GoldilocksWire<F>,
     ) -> PoseidonBN254HashWire<F> {
         let gate = self.gate();
-        let value = gate.select_from_idx(ctx, arr.iter().map(|x| x.value), idx.0);
+        let value = gate.select_from_idx(ctx.ctx, arr.iter().map(|x| x.value), idx.0);
         PoseidonBN254HashWire { value }
     }
 
     fn assert_equal(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &PoseidonBN254HashWire<F>,
         b: &PoseidonBN254HashWire<F>,
     ) {
-        ctx.constrain_equal(&a.value, &b.value);
+        ctx.ctx.constrain_equal(&a.value, &b.value);
     }
 
     fn hash_no_pad(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         values: &[GoldilocksWire<F>],
     ) -> PoseidonBN254HashWire<F> {
         let permutation_chip = self.permutation_chip();
 
-        let mut state =
-            PoseidonBN254StateWire(ctx.load_constants(&[F::ZERO; WIDTH]).try_into().unwrap());
+        let mut state = PoseidonBN254StateWire(
+            ctx.ctx
+                .load_constants(&[F::ZERO; WIDTH])
+                .try_into()
+                .unwrap(),
+        );
 
         // Absorb all input chunks.
         state = permutation_chip.absorb_goldilocks(ctx, &state, values);
@@ -153,21 +159,25 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
     // TODO: Dedup by reusing hash_no_pad
     fn two_to_one(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         left: &PoseidonBN254HashWire<F>,
         right: &PoseidonBN254HashWire<F>,
     ) -> PoseidonBN254HashWire<F> {
         let permutation_chip = self.permutation_chip();
 
         // TODO: Remove extra allocations
-        let mut state =
-            PoseidonBN254StateWire(ctx.load_constants(&[F::ZERO; WIDTH]).try_into().unwrap());
+        let mut state = PoseidonBN254StateWire(
+            ctx.ctx
+                .load_constants(&[F::ZERO; WIDTH])
+                .try_into()
+                .unwrap(),
+        );
 
         // TODO: Why 2, 3?
         state.0[2] = left.value;
         state.0[3] = right.value;
 
-        state = permutation_chip.permute(ctx, &state);
+        state = count!(ctx, "permute", permutation_chip.permute(ctx, &state));
 
         PoseidonBN254HashWire {
             value: permutation_chip.squeeze(&state)[0],
@@ -190,6 +200,9 @@ mod tests {
     #[test]
     fn test_hash_no_pad() {
         base_test().k(14).run(|ctx, range| {
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonBN254Chip::new(range.clone()); // TODO: Remove clone, store reference
 
@@ -208,17 +221,20 @@ mod tests {
     #[test]
     fn test_hash_two_to_one() {
         base_test().k(14).run(|ctx, range| {
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let poseidon_chip = PoseidonBN254Chip::new(range.clone()); // TODO: Remove clone, store reference
 
             for _ in 0..10 {
                 let hash1 = PoseidonBN128Hash::hash_no_pad(&[GoldilocksField::rand()]);
                 let hash1_wire = PoseidonBN254HashWire {
-                    value: ctx.load_constant(hash_to_fr(hash1)),
+                    value: ctx.ctx.load_constant(hash_to_fr(hash1)),
                 };
 
                 let hash2 = PoseidonBN128Hash::hash_no_pad(&[GoldilocksField::rand()]);
                 let hash2_wire = PoseidonBN254HashWire {
-                    value: ctx.load_constant(hash_to_fr(hash2)),
+                    value: ctx.ctx.load_constant(hash_to_fr(hash2)),
                 };
 
                 let hash_res = PoseidonBN128Hash::two_to_one(hash1, hash2);

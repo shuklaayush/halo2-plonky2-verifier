@@ -1,11 +1,12 @@
 use std::marker::PhantomData;
 
 use halo2_base::utils::BigPrimeField;
-use halo2_base::Context;
 
+use crate::count;
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
+use crate::util::ContextWrapper;
 
 #[derive(Clone, Debug)]
 pub struct MerkleCapWire<F: BigPrimeField, HW: HashWire<F>>(pub Vec<HW>, PhantomData<F>);
@@ -55,7 +56,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
 
     pub fn verify_proof_to_cap_with_cap_index(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         leaf_data: &[GoldilocksWire<F>],
         leaf_index_bits: &[BoolWire<F>],
         cap_index: &GoldilocksWire<F>,
@@ -64,12 +65,20 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
     ) {
         let hasher_chip = self.hasher_chip();
 
-        let mut node = hasher_chip.hash_or_noop(ctx, leaf_data);
+        let mut node = count!(
+            ctx,
+            "hash_or_noop",
+            hasher_chip.hash_or_noop(ctx, leaf_data)
+        );
         for (&sibling, bit) in proof.siblings.iter().zip(leaf_index_bits.iter()) {
             // TODO: Is there a more efficient to way to select both at once?
             let left = hasher_chip.select(ctx, &sibling, &node, bit);
             let right = hasher_chip.select(ctx, &node, &sibling, bit);
-            node = hasher_chip.two_to_one(ctx, &left, &right);
+            node = count!(
+                ctx,
+                "two_to_one",
+                hasher_chip.two_to_one(ctx, &left, &right)
+            );
         }
 
         let root = hasher_chip.select_from_idx(ctx, merkle_cap.0.as_slice(), cap_index);
@@ -80,7 +89,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
     //       Maybe there's a bettter abstraction?
     pub fn verify_proof_to_cap(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         leaf_data: &[GoldilocksWire<F>],
         leaf_index_bits: &[BoolWire<F>],
         merkle_cap: &MerkleCapWire<F, HC::HashWire>,
@@ -91,26 +100,34 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
         // leaf_index / 2^(depth - cap_height)
         let cap_index = goldilocks_chip.bits_to_num(ctx, &leaf_index_bits[proof.siblings.len()..]);
 
-        self.verify_proof_to_cap_with_cap_index(
+        count!(
             ctx,
-            leaf_data,
-            leaf_index_bits,
-            &cap_index,
-            merkle_cap,
-            proof,
+            "verify_proof_to_cap_with_cap_index(",
+            self.verify_proof_to_cap_with_cap_index(
+                ctx,
+                leaf_data,
+                leaf_index_bits,
+                &cap_index,
+                merkle_cap,
+                proof,
+            )
         );
     }
 
     pub fn verify_proof(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         leaf_data: &[GoldilocksWire<F>],
         leaf_index_bits: &[BoolWire<F>],
         merkle_root: &HC::HashWire,
         proof: &MerkleProofWire<F, HC::HashWire>,
     ) {
         let merkle_cap = MerkleCapWire::new(vec![*merkle_root]);
-        self.verify_proof_to_cap(ctx, leaf_data, leaf_index_bits, &merkle_cap, proof);
+        count!(
+            ctx,
+            "verify_proof_to_cap",
+            self.verify_proof_to_cap(ctx, leaf_data, leaf_index_bits, &merkle_cap, proof)
+        );
     }
 }
 
@@ -136,6 +153,9 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         base_test().k(14).run(|ctx, range| {
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
             let merkle_chip = MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_chip);
@@ -201,6 +221,9 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         base_test().k(14).run(|ctx, range| {
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
             let merkle_chip = MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_chip);

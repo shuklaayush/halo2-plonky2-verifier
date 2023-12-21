@@ -1,6 +1,5 @@
 use halo2_base::gates::RangeChip;
 use halo2_base::utils::BigPrimeField;
-use halo2_base::Context;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::hash::poseidon::{
@@ -10,6 +9,7 @@ use plonky2::hash::poseidon::{
 
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::hash::{PermutationChip, StateWire};
+use crate::util::ContextWrapper;
 
 #[derive(Copy, Clone, Debug)]
 pub struct PoseidonStateWire<F: BigPrimeField>(pub [GoldilocksWire<F>; SPONGE_WIDTH]);
@@ -41,7 +41,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 
     fn mds_row_shf(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         r: usize,
         v: &[GoldilocksWire<F>; SPONGE_WIDTH],
     ) -> GoldilocksWire<F> {
@@ -73,7 +73,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
     // TODO: Why not mutate state?
     fn mds_layer(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &PoseidonStateWire<F>,
     ) -> PoseidonStateWire<F> {
         let chip = self.goldilocks_chip();
@@ -87,7 +87,11 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         result.into()
     }
 
-    fn partial_first_constant_layer(&self, ctx: &mut Context<F>, state: &mut PoseidonStateWire<F>) {
+    fn partial_first_constant_layer(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        state: &mut PoseidonStateWire<F>,
+    ) {
         let chip = self.goldilocks_chip();
 
         for i in 0..SPONGE_WIDTH {
@@ -103,7 +107,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 
     fn mds_partial_layer_init(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &PoseidonStateWire<F>,
     ) -> PoseidonStateWire<F> {
         let chip = self.goldilocks_chip();
@@ -129,7 +133,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 
     fn mds_partial_layer_fast(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &PoseidonStateWire<F>,
         r: usize,
     ) -> PoseidonStateWire<F> {
@@ -169,7 +173,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 
     fn constant_layer(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &mut PoseidonStateWire<F>,
         round_ctr: usize,
     ) {
@@ -186,7 +190,11 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         }
     }
 
-    fn sbox_monomial(&self, ctx: &mut Context<F>, x: &GoldilocksWire<F>) -> GoldilocksWire<F> {
+    fn sbox_monomial(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        x: &GoldilocksWire<F>,
+    ) -> GoldilocksWire<F> {
         let chip = self.goldilocks_chip();
 
         let x2 = chip.mul(ctx, x, x);
@@ -195,7 +203,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         chip.mul(ctx, &x6, x)
     }
 
-    fn sbox_layer(&self, ctx: &mut Context<F>, state: &mut PoseidonStateWire<F>) {
+    fn sbox_layer(&self, ctx: &mut ContextWrapper<F>, state: &mut PoseidonStateWire<F>) {
         for i in 0..SPONGE_WIDTH {
             state.0[i] = self.sbox_monomial(ctx, &state.0[i]);
         }
@@ -203,7 +211,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 
     fn partial_rounds(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &mut PoseidonStateWire<F>,
         round_ctr: &mut usize,
     ) {
@@ -227,7 +235,7 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 
     fn full_rounds(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &mut PoseidonStateWire<F>,
         round_ctr: &mut usize,
     ) {
@@ -249,7 +257,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
         self.goldilocks_chip.range()
     }
 
-    fn load_zero(&self, ctx: &mut Context<F>) -> PoseidonStateWire<F> {
+    fn load_zero(&self, ctx: &mut ContextWrapper<F>) -> PoseidonStateWire<F> {
         let chip = self.goldilocks_chip();
         chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH])
             .into()
@@ -257,7 +265,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
 
     fn permute(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state_in: &PoseidonStateWire<F>,
     ) -> PoseidonStateWire<F> {
         let mut round_ctr = 0;
@@ -273,7 +281,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
 
     fn absorb_goldilocks(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state_in: &PoseidonStateWire<F>,
         input: &[GoldilocksWire<F>],
     ) -> PoseidonStateWire<F> {
@@ -294,7 +302,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
 
     fn squeeze_goldilocks(
         &self,
-        _ctx: &mut Context<F>,
+        _ctx: &mut ContextWrapper<F>,
         state: &PoseidonStateWire<F>,
     ) -> Vec<GoldilocksWire<F>> {
         self.squeeze(state)
@@ -311,6 +319,9 @@ mod tests {
     #[test]
     fn test_permute() {
         base_test().k(14).run(|ctx, range| {
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
             let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip.clone()); // TODO: Remove clone, use reference
 

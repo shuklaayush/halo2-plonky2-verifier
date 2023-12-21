@@ -1,11 +1,12 @@
 use halo2_base::utils::BigPrimeField;
-use halo2_base::Context;
 use plonky2::field::extension::quadratic::QuadraticExtension;
 use plonky2::field::extension::Extendable;
 use plonky2::field::extension::FieldExtension;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::util::bits_u64;
+
+use crate::util::ContextWrapper;
 
 use super::base::{GoldilocksChip, GoldilocksWire};
 
@@ -49,7 +50,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn load_constant(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: QuadraticExtension<GoldilocksField>,
     ) -> GoldilocksQuadExtWire<F> {
         let [a0, a1] = a.to_basefield_array();
@@ -60,17 +61,17 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         ])
     }
 
-    pub fn load_zero(&self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
+    pub fn load_zero(&self, ctx: &mut ContextWrapper<F>) -> GoldilocksQuadExtWire<F> {
         self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ZERO)
     }
 
-    pub fn load_one(&self, ctx: &mut Context<F>) -> GoldilocksQuadExtWire<F> {
+    pub fn load_one(&self, ctx: &mut ContextWrapper<F>) -> GoldilocksQuadExtWire<F> {
         self.load_constant(ctx, QuadraticExtension::<GoldilocksField>::ONE)
     }
 
     pub fn load_constant_array<const N: usize>(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &[QuadraticExtension<GoldilocksField>; N],
     ) -> [GoldilocksQuadExtWire<F>; N] {
         a.iter()
@@ -82,7 +83,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn load_witness(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: QuadraticExtension<GoldilocksField>,
     ) -> GoldilocksQuadExtWire<F> {
         let [a0, a1] = a.to_basefield_array();
@@ -95,7 +96,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn select_from_idx(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         arr: &[GoldilocksQuadExtWire<F>],
         // TODO: Should index be a separate type?
         idx: &GoldilocksWire<F>,
@@ -115,7 +116,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn load_base(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
         let zero = self.goldilocks_chip.load_zero(ctx);
@@ -124,7 +125,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn add_no_reduce(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -139,7 +140,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn add(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -149,7 +150,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn sub_no_reduce(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -164,7 +165,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn sub(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -175,7 +176,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     // a * b = (a0 * b0 + w * a1 * b1, a0 * b1 + a1 * b0)
     pub fn mul_no_reduce(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -200,7 +201,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     // TODO: Can I use `mul_no_reduce` here? Because c0 is > p*(p-1)
     pub fn mul(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -225,7 +226,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     // TODO: Is there a better way to do this?
     pub fn div(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -235,7 +236,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn square(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
         let GoldilocksQuadExtWire([a0, a1]) = a;
@@ -257,7 +258,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     // TODO: Can I use a custom gate for this?
     pub fn mul_add_no_reduce(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
         c: &GoldilocksQuadExtWire<F>,
@@ -269,7 +270,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     // TODO: Can I use `mul_no_reduce` here? Because c0 is > p*(p-1)
     pub fn mul_add(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
         c: &GoldilocksQuadExtWire<F>,
@@ -280,7 +281,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn mul_sub_no_reduce(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
         c: &GoldilocksQuadExtWire<F>,
@@ -291,7 +292,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn mul_sub(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
         c: &GoldilocksQuadExtWire<F>,
@@ -303,7 +304,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     // TODO: Is this correct? Is there a better way to do this?
     pub fn inv(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
         // 1. Calculate hint
@@ -324,7 +325,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn scalar_mul(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -336,7 +337,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn scalar_div(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -348,7 +349,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn reduce(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
         let GoldilocksQuadExtWire([a0, a1]) = a;
@@ -361,7 +362,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn exp_u64(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         base: &GoldilocksQuadExtWire<F>,
         exponent: u64,
     ) -> GoldilocksQuadExtWire<F> {
@@ -389,7 +390,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     /// Exponentiate `base` to the power of `2^power_log`.
     pub fn exp_power_of_2(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         base: &GoldilocksQuadExtWire<F>,
         power_log: usize,
     ) -> GoldilocksQuadExtWire<F> {
@@ -400,7 +401,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         curr
     }
 
-    pub fn range_check(&self, ctx: &mut Context<F>, a: &GoldilocksQuadExtWire<F>) {
+    pub fn range_check(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksQuadExtWire<F>) {
         let GoldilocksQuadExtWire([a0, a1]) = a;
 
         self.goldilocks_chip.range_check(ctx, a0);
@@ -409,7 +410,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
 
     pub fn assert_equal(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &GoldilocksQuadExtWire<F>,
         b: &GoldilocksQuadExtWire<F>,
     ) {
@@ -423,7 +424,7 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     // TODO: There should be a way to do this without reducing every step
     pub fn reduce_with_powers(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         terms: &[GoldilocksQuadExtWire<F>],
         scalar: &GoldilocksQuadExtWire<F>,
     ) -> GoldilocksQuadExtWire<F> {
@@ -448,6 +449,9 @@ mod tests {
     #[test]
     fn test_goldilocks_extension_chip() {
         base_test().k(14).run(|ctx, range| {
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let gl_chip = GoldilocksChip::<Fr>::new(range.clone());
             let gle_chip = GoldilocksQuadExtChip::new(gl_chip);
 

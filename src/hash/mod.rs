@@ -1,7 +1,10 @@
-use halo2_base::{gates::RangeChip, utils::BigPrimeField, Context};
+use halo2_base::{gates::RangeChip, utils::BigPrimeField};
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
-use crate::goldilocks::{base::GoldilocksWire, BoolWire};
+use crate::{
+    goldilocks::{base::GoldilocksWire, BoolWire},
+    util::ContextWrapper,
+};
 
 pub mod poseidon;
 pub mod poseidon_bn254;
@@ -11,7 +14,7 @@ pub mod poseidon_bn254;
 pub trait HashWire<F: BigPrimeField>: Copy + Clone {
     fn to_goldilocks_vec(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         range: &RangeChip<F>,
     ) -> Vec<GoldilocksWire<F>>;
 }
@@ -26,13 +29,13 @@ pub trait PermutationChip<F: BigPrimeField>: Clone {
 
     fn range(&self) -> &RangeChip<F>;
 
-    fn load_zero(&self, ctx: &mut Context<F>) -> Self::StateWire;
+    fn load_zero(&self, ctx: &mut ContextWrapper<F>) -> Self::StateWire;
 
-    fn permute(&self, ctx: &mut Context<F>, state: &Self::StateWire) -> Self::StateWire;
+    fn permute(&self, ctx: &mut ContextWrapper<F>, state: &Self::StateWire) -> Self::StateWire;
 
     fn absorb_goldilocks(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &Self::StateWire,
         input: &[GoldilocksWire<F>],
     ) -> Self::StateWire;
@@ -42,7 +45,7 @@ pub trait PermutationChip<F: BigPrimeField>: Clone {
 
     fn squeeze_goldilocks(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &Self::StateWire,
     ) -> Vec<GoldilocksWire<F>>;
 }
@@ -65,19 +68,19 @@ pub trait HasherChip<F: BigPrimeField> {
 
     fn load_constant(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         constant: <Self::Hasher as Hasher<GoldilocksField>>::Hash,
     ) -> Self::HashWire;
 
     fn load_goldilocks_slice(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         elements: &[GoldilocksWire<F>],
     ) -> Self::HashWire;
 
     fn select(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &Self::HashWire,
         b: &Self::HashWire,
         sel: &BoolWire<F>,
@@ -85,20 +88,28 @@ pub trait HasherChip<F: BigPrimeField> {
 
     fn select_from_idx(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         a: &[Self::HashWire],
         idx: &GoldilocksWire<F>,
     ) -> Self::HashWire;
 
-    fn assert_equal(&self, ctx: &mut Context<F>, a: &Self::HashWire, b: &Self::HashWire);
+    fn assert_equal(&self, ctx: &mut ContextWrapper<F>, a: &Self::HashWire, b: &Self::HashWire);
 
     /// Hash a message without any padding step. Note that this can enable length-extension attacks.
     /// However, it is still collision-resistant in cases where the input has a fixed length.
-    fn hash_no_pad(&self, ctx: &mut Context<F>, input: &[GoldilocksWire<F>]) -> Self::HashWire;
+    fn hash_no_pad(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        input: &[GoldilocksWire<F>],
+    ) -> Self::HashWire;
 
     /// Hash the slice if necessary to reduce its length to ~256 bits. If it already fits, this is a
     /// no-op.
-    fn hash_or_noop(&self, ctx: &mut Context<F>, inputs: &[GoldilocksWire<F>]) -> Self::HashWire {
+    fn hash_or_noop(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        inputs: &[GoldilocksWire<F>],
+    ) -> Self::HashWire {
         if inputs.len() <= Self::MAX_GOLDILOCKS {
             self.load_goldilocks_slice(ctx, inputs)
         } else {
@@ -108,7 +119,7 @@ pub trait HasherChip<F: BigPrimeField> {
 
     fn two_to_one(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         left: &Self::HashWire,
         right: &Self::HashWire,
     ) -> Self::HashWire;

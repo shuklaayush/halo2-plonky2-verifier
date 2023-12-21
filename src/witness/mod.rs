@@ -1,4 +1,4 @@
-use halo2_base::{utils::BigPrimeField, Context};
+use halo2_base::utils::BigPrimeField;
 use itertools::Itertools;
 use plonky2::{
     field::{
@@ -23,6 +23,7 @@ use crate::{
     hash::HasherChip,
     merkle::{MerkleCapWire, MerkleProofWire},
     stark::{StarkOpeningSetWire, StarkProofWire, StarkProofWithPublicInputsWire},
+    util::ContextWrapper,
 };
 
 // TODO: Follow plonky2 pattern of `load_witness` (add target) and `assert_equal` (set target)
@@ -45,13 +46,13 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         &self.goldilocks_chip
     }
 
-    fn load(&self, ctx: &mut Context<F>, value: GoldilocksField) -> GoldilocksWire<F> {
+    fn load(&self, ctx: &mut ContextWrapper<F>, value: GoldilocksField) -> GoldilocksWire<F> {
         self.goldilocks_chip().load_constant(ctx, value)
     }
 
     fn load_hash(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         value: <HC::Hasher as Hasher<GoldilocksField>>::Hash,
     ) -> HC::HashWire {
         self.hasher_chip.load_constant(ctx, value)
@@ -59,7 +60,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     fn load_cap(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         value: &MerkleCap<GoldilocksField, HC::Hasher>,
     ) -> MerkleCapWire<F, HC::HashWire> {
         MerkleCapWire::new(
@@ -73,7 +74,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     fn load_array(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         values: &[GoldilocksField],
     ) -> Vec<GoldilocksWire<F>> {
         values
@@ -84,7 +85,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     fn load_extension(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         value: QuadraticExtension<GoldilocksField>,
     ) -> GoldilocksQuadExtWire<F> {
         let values: [GoldilocksField; 2] = value.to_basefield_array();
@@ -93,7 +94,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     fn load_extensions(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         values: &[QuadraticExtension<GoldilocksField>],
     ) -> Vec<GoldilocksQuadExtWire<F>> {
         values
@@ -104,7 +105,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     fn load_fri_openings(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         fri_openings: &FriOpenings<GoldilocksField, 2>,
     ) -> FriOpeningsWire<F> {
         FriOpeningsWire {
@@ -121,7 +122,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
     // TODO: Plonky2 only constraints equality of .to_fri_openings() instead of whole struct
     fn load_openings_set(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         openings_set: &StarkOpeningSet<GoldilocksField, 2>,
     ) -> StarkOpeningSetWire<F> {
         StarkOpeningSetWire {
@@ -140,7 +141,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     pub fn load_fri_proof(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         fri_proof: &FriProof<GoldilocksField, HC::Hasher, 2>,
     ) -> FriProofWire<F, HC::HashWire> {
         let pow_witness = self.load(ctx, fri_proof.pow_witness);
@@ -225,7 +226,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     pub fn load_proof(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         proof: &StarkProof<
             GoldilocksField,
             impl GenericConfig<2, F = GoldilocksField, Hasher = HC::Hasher>,
@@ -256,7 +257,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     pub fn load_proof_with_pis(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         // TODO: Make generic
         proof_with_pis: StarkProofWithPublicInputs<
             GoldilocksField,

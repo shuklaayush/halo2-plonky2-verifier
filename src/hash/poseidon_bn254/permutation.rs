@@ -1,7 +1,7 @@
 use ff::PrimeField;
 use halo2_base::gates::{GateChip, GateInstructions, RangeChip, RangeInstructions};
 use halo2_base::utils::BigPrimeField;
-use halo2_base::{AssignedValue, Context};
+use halo2_base::AssignedValue;
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
@@ -13,6 +13,7 @@ use plonky2x::backend::wrapper::utils::Fr as Fr_plonky2x;
 
 use crate::goldilocks::base::GoldilocksWire;
 use crate::hash::{PermutationChip, StateWire};
+use crate::util::ContextWrapper;
 
 #[derive(Copy, Clone, Debug)]
 pub struct PoseidonBN254StateWire<F: BigPrimeField>(pub [AssignedValue<F>; WIDTH]);
@@ -46,15 +47,15 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         self.range.gate()
     }
 
-    fn exp5(&self, ctx: &mut Context<F>, x: AssignedValue<F>) -> AssignedValue<F> {
+    fn exp5(&self, ctx: &mut ContextWrapper<F>, x: AssignedValue<F>) -> AssignedValue<F> {
         let gate = self.gate();
 
-        let x2 = gate.mul(ctx, x, x);
-        let x4 = gate.mul(ctx, x2, x2);
-        gate.mul(ctx, x4, x)
+        let x2 = gate.mul(ctx.ctx, x, x);
+        let x4 = gate.mul(ctx.ctx, x2, x2);
+        gate.mul(ctx.ctx, x4, x)
     }
 
-    fn exp5_state(&self, ctx: &mut Context<F>, state: &mut PoseidonBN254StateWire<F>) {
+    fn exp5_state(&self, ctx: &mut ContextWrapper<F>, state: &mut PoseidonBN254StateWire<F>) {
         for i in 0..WIDTH {
             state.0[i] = self.exp5(ctx, state.0[i]);
         }
@@ -62,39 +63,45 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
 
     fn mix(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &mut PoseidonBN254StateWire<F>,
         constant_matrix: &[Vec<AssignedValue<F>>],
     ) {
         let gate = self.gate();
 
-        let mut new_state = [ctx.load_zero(); WIDTH];
+        let mut new_state = [ctx.ctx.load_zero(); WIDTH];
         // TODO: Use inner product gate
         for i in 0..WIDTH {
             for j in 0..WIDTH {
-                new_state[i] = gate.mul_add(ctx, constant_matrix[j][i], state.0[j], new_state[i]);
+                new_state[i] =
+                    gate.mul_add(ctx.ctx, constant_matrix[j][i], state.0[j], new_state[i]);
             }
         }
         state.0 = new_state;
     }
 
-    fn partial_rounds(&self, ctx: &mut Context<F>, state: &mut PoseidonBN254StateWire<F>) {
+    fn partial_rounds(&self, ctx: &mut ContextWrapper<F>, state: &mut PoseidonBN254StateWire<F>) {
         let gate = self.gate();
         for i in 0..PARTIAL_ROUNDS {
             state.0[0] = self.exp5(ctx, state.0[0]);
-            let c = ctx.load_constant(from_fr(C_CONSTANTS[(FULL_ROUNDS / 2 + 1) * WIDTH + i]));
-            state.0[0] = gate.add(ctx, state.0[0], c);
+            let c = ctx
+                .ctx
+                .load_constant(from_fr(C_CONSTANTS[(FULL_ROUNDS / 2 + 1) * WIDTH + i]));
+            state.0[0] = gate.add(ctx.ctx, state.0[0], c);
 
-            let mut new_state0 = ctx.load_zero();
+            let mut new_state0 = ctx.ctx.load_zero();
             for j in 0..WIDTH {
-                let c = ctx.load_constant(from_fr(S_CONSTANTS[(WIDTH * 2 - 1) * i + j]));
-                new_state0 = gate.mul_add(ctx, c, state.0[j], new_state0);
+                let c = ctx
+                    .ctx
+                    .load_constant(from_fr(S_CONSTANTS[(WIDTH * 2 - 1) * i + j]));
+                new_state0 = gate.mul_add(ctx.ctx, c, state.0[j], new_state0);
             }
 
             for k in 1..WIDTH {
-                let c =
-                    ctx.load_constant(from_fr(S_CONSTANTS[(WIDTH * 2 - 1) * i + WIDTH + k - 1]));
-                state.0[k] = gate.mul_add(ctx, c, state.0[0], state.0[k]);
+                let c = ctx
+                    .ctx
+                    .load_constant(from_fr(S_CONSTANTS[(WIDTH * 2 - 1) * i + WIDTH + k - 1]));
+                state.0[k] = gate.mul_add(ctx.ctx, c, state.0[0], state.0[k]);
             }
 
             state.0[0] = new_state0;
@@ -103,7 +110,7 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
 
     fn full_rounds(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &mut PoseidonBN254StateWire<F>,
         is_first: bool,
     ) {
@@ -112,7 +119,7 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|&x| ctx.load_constant(from_fr(x)))
+                    .map(|&x| ctx.ctx.load_constant(from_fr(x)))
                     .collect_vec()
             })
             .collect_vec();
@@ -120,7 +127,7 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|&x| ctx.load_constant(from_fr(x)))
+                    .map(|&x| ctx.ctx.load_constant(from_fr(x)))
                     .collect_vec()
             })
             .collect_vec();
@@ -149,12 +156,12 @@ impl<F: BigPrimeField> PoseidonBN254PermutationChip<F> {
         }
     }
 
-    fn ark(&self, ctx: &mut Context<F>, state: &mut PoseidonBN254StateWire<F>, it: usize) {
+    fn ark(&self, ctx: &mut ContextWrapper<F>, state: &mut PoseidonBN254StateWire<F>, it: usize) {
         let gate = self.gate();
 
         for i in 0..WIDTH {
-            let c = ctx.load_constant(from_fr(C_CONSTANTS[it + i]));
-            state.0[i] = gate.add(ctx, state.0[i], c);
+            let c = ctx.ctx.load_constant(from_fr(C_CONSTANTS[it + i]));
+            state.0[i] = gate.add(ctx.ctx, state.0[i], c);
         }
     }
 }
@@ -166,13 +173,18 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
         &self.range
     }
 
-    fn load_zero(&self, ctx: &mut Context<F>) -> PoseidonBN254StateWire<F> {
-        PoseidonBN254StateWire(ctx.load_constants(&[F::ZERO; WIDTH]).try_into().unwrap())
+    fn load_zero(&self, ctx: &mut ContextWrapper<F>) -> PoseidonBN254StateWire<F> {
+        PoseidonBN254StateWire(
+            ctx.ctx
+                .load_constants(&[F::ZERO; WIDTH])
+                .try_into()
+                .unwrap(),
+        )
     }
 
     fn permute(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state_in: &PoseidonBN254StateWire<F>,
     ) -> PoseidonBN254StateWire<F> {
         let mut state = *state_in;
@@ -187,7 +199,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
 
     fn absorb_goldilocks(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state_in: &PoseidonBN254StateWire<F>,
         input: &[GoldilocksWire<F>],
     ) -> PoseidonBN254StateWire<F> {
@@ -199,7 +211,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
             for (j, bn254chunk) in rate_chunk.chunks(3).enumerate() {
                 // TODO: Does this mean state[0] is always 0? Why?
                 state.0[j + 1] = range.limbs_to_num(
-                    ctx,
+                    ctx.ctx,
                     bn254chunk.iter().map(|x| x.0).collect_vec().as_slice(),
                     GoldilocksField::BITS,
                 );
@@ -216,7 +228,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
 
     fn squeeze_goldilocks(
         &self,
-        ctx: &mut Context<F>,
+        ctx: &mut ContextWrapper<F>,
         state: &PoseidonBN254StateWire<F>,
     ) -> Vec<GoldilocksWire<F>> {
         let range = self.range();
@@ -226,7 +238,7 @@ impl<F: BigPrimeField> PermutationChip<F> for PoseidonBN254PermutationChip<F> {
             .flat_map(|&x| {
                 range
                     // TODO: No hardcode
-                    .decompose_le(ctx, x, 56, 5)
+                    .decompose_le(ctx.ctx, x, 56, 5)
                     .iter()
                     .map(|&x| GoldilocksWire(x))
                     .collect_vec()
@@ -252,6 +264,9 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         base_test().k(14).run(|ctx, range| {
+            let mut ctx = ContextWrapper::new(ctx);
+            let ctx = &mut ctx;
+
             let permutation_chip = PoseidonBN254PermutationChip::new(range.clone()); // TODO: Remove clone, use reference
 
             for _ in 0..10 {
@@ -262,7 +277,8 @@ mod tests {
                     .unwrap();
 
                 let state_in_wire = PoseidonBN254StateWire(
-                    ctx.load_constants(&state.iter().map(|&x| from_fr(x)).collect_vec())
+                    ctx.ctx
+                        .load_constants(&state.iter().map(|&x| from_fr(x)).collect_vec())
                         .try_into()
                         .unwrap(),
                 );

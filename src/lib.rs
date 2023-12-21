@@ -7,5 +7,5 @@ pub mod goldilocks;
 pub mod hash;
 pub mod merkle;
 pub mod stark;
-mod util;
+pub mod util;
 pub mod witness;
