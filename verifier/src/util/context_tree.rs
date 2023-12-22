@@ -134,23 +134,19 @@ impl ContextTree {
     }
 
     fn write_helper(&self, buffer: &mut impl Write, current_cell_count: usize, prefix: &str) {
-        // TODO: Ugly
-        let full_name = if prefix.is_empty() {
-            if self.name == "root" {
-                String::new()
-            } else {
-                self.name.clone()
-            }
-        } else {
-            format!("{};{}", prefix, self.name)
+        let full_name = match (prefix.is_empty(), self.name.as_str()) {
+            (true, "root") => String::new(),
+            (true, _) => self.name.clone(),
+            (false, _) => format!("{};{}", prefix, self.name),
         };
+
         // Flamegraph operates on the number of samples in the stack
         let mut count = self.cell_count_delta(current_cell_count);
         for child in &self.children {
             child.write_helper(buffer, current_cell_count, full_name.as_str());
             count -= child.cell_count_delta(current_cell_count);
         }
-        if !prefix.is_empty() || self.name != "root" {
+        if !full_name.is_empty() {
             writeln!(buffer, "{} {}", full_name, count).expect("Failed to write to buffer");
         }
     }
@@ -164,8 +160,7 @@ impl ContextTree {
     ) {
         let mut buffer = Vec::new();
         self.write(&mut buffer, current_cell_count);
-        // TODO: Is there a way to iterate over the lines without allocating a string?
-        let trace = String::from_utf8(buffer).expect("Failed to convert to string");
+        let trace = std::str::from_utf8(&buffer).expect("Buffer is not valid UTF-8");
 
         let mut options = Options::default();
         options.title = title.to_string();
