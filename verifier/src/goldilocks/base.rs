@@ -381,23 +381,6 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         remainder
     }
 
-    #[count]
-    pub fn inv(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
-        // 1. Calculate hint
-        let inverse = a.value().inverse();
-
-        // 2. Load witnesses from hint
-        let inverse = self.load_witness(ctx, inverse);
-
-        // 3. Constrain witnesses
-        let product = self.mul(ctx, a, &inverse);
-        let one = self.load_one(ctx);
-        self.assert_equal(ctx, &product, &one);
-
-        // Return
-        inverse
-    }
-
     // TODO: Change to div_add?
     #[count]
     pub fn div(
@@ -421,6 +404,12 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         self.assert_equal(ctx, a, &product);
 
         res
+    }
+
+    #[count]
+    pub fn inv(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) -> GoldilocksWire<F> {
+        let one = self.load_one(ctx);
+        self.div(ctx, &one, a)
     }
 
     #[count]
