@@ -11,7 +11,7 @@ use verifier_macro::count;
 
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::hash::{PermutationChip, StateWire};
-use crate::util::ContextWrapper;
+use crate::util::context_wrapper::ContextWrapper;
 
 #[derive(Copy, Clone, Debug)]
 pub struct PoseidonStateWire<F: BigPrimeField>(pub [GoldilocksWire<F>; SPONGE_WIDTH]);

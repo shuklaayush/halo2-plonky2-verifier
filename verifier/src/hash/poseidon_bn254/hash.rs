@@ -14,7 +14,7 @@ use super::permutation::{PoseidonBN254PermutationChip, PoseidonBN254StateWire};
 use crate::goldilocks::base::GoldilocksWire;
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
-use crate::util::ContextWrapper;
+use crate::util::context_wrapper::ContextWrapper;
 
 fn hash_to_fr<F: BigPrimeField>(hash: PoseidonBN128HashOut<GoldilocksField>) -> F {
     F::from_bytes_le(hash.to_bytes().as_slice())

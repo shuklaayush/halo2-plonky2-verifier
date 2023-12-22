@@ -3,7 +3,7 @@ use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
 use crate::{
     goldilocks::{base::GoldilocksWire, BoolWire},
-    util::ContextWrapper,
+    util::context_wrapper::ContextWrapper,
 };
 
 pub mod poseidon;

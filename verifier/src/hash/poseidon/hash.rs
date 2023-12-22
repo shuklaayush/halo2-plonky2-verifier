@@ -12,7 +12,7 @@ use super::permutation::{PoseidonPermutationChip, PoseidonStateWire};
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
-use crate::util::ContextWrapper;
+use crate::util::context_wrapper::ContextWrapper;
 
 /// Represents a ~256 bit hash output.
 #[derive(Copy, Clone, Debug)]

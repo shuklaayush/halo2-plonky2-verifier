@@ -8,7 +8,7 @@ use plonky2::util::bits_u64;
 
 use verifier_macro::count;
 
-use crate::util::ContextWrapper;
+use crate::util::context_wrapper::ContextWrapper;
 
 use super::base::{GoldilocksChip, GoldilocksWire};
 

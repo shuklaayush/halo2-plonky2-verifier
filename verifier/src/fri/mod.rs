@@ -16,7 +16,7 @@ use crate::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire}
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::{MerkleCapWire, MerkleProofWire, MerkleTreeChip};
-use crate::util::ContextWrapper;
+use crate::util::context_wrapper::ContextWrapper;
 
 pub struct FriInstanceInfoWire<F: BigPrimeField> {
     pub oracles: Vec<FriOracleInfo>,

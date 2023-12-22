@@ -25,7 +25,7 @@ use crate::{
     hash::HasherChip,
     merkle::{MerkleCapWire, MerkleProofWire},
     stark::{StarkOpeningSetWire, StarkProofWire, StarkProofWithPublicInputsWire},
-    util::ContextWrapper,
+    util::context_wrapper::ContextWrapper,
 };
 
 // TODO: Follow plonky2 pattern of `load_witness` (add target) and `assert_equal` (set target)

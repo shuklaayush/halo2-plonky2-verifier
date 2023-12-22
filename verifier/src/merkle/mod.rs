@@ -6,7 +6,7 @@ use verifier_macro::count;
 use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
-use crate::util::ContextWrapper;
+use crate::util::context_wrapper::ContextWrapper;
 
 #[derive(Clone, Debug)]
 pub struct MerkleCapWire<F: BigPrimeField, HW: HashWire<F>>(pub Vec<HW>, PhantomData<F>);

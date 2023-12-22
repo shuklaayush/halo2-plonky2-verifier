@@ -14,7 +14,7 @@ use crate::goldilocks::extension::GoldilocksQuadExtWire;
 use crate::hash::{HashWire, PermutationChip};
 use crate::merkle::MerkleCapWire;
 use crate::stark::{StarkProofChallengesWire, StarkProofWire};
-use crate::util::ContextWrapper;
+use crate::util::context_wrapper::ContextWrapper;
 
 pub struct ChallengerChip<F: BigPrimeField, PC: PermutationChip<F>> {
     pub permutation_chip: PC,

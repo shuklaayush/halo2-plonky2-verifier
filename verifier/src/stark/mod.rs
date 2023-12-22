@@ -29,7 +29,7 @@ use crate::{
     },
     hash::{HashWire, HasherChip, PermutationChip},
     merkle::MerkleCapWire,
-    util::ContextWrapper,
+    util::context_wrapper::ContextWrapper,
 };
 
 pub struct PermutationCheckDataWire<F: BigPrimeField> {

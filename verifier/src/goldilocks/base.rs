@@ -9,12 +9,10 @@ use plonky2::field::types::{Field, Field64, PrimeField64};
 
 use verifier_macro::count;
 
-use crate::util::ContextWrapper;
+use crate::util::context_wrapper::ContextWrapper;
 
 use super::BoolWire;
 
-// TODO: Use SafeUint64?
-//       https://github.com/axiom-crypto/halo2-lib/blob/400122a6cf074783d0e5ee904a711e75ddfff3d4/halo2-base/src/safe_types/mod.rs#L109-L109
 #[derive(Copy, Clone, Debug)]
 pub struct GoldilocksWire<F: BigPrimeField>(pub AssignedValue<F>);
 
@@ -484,7 +482,10 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     #[count]
     pub fn range_check(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) {
         let range = self.range();
+        // let before = ctx.ctx.advice.len();
         range.check_less_than_safe(ctx.ctx, a.0, GoldilocksField::ORDER);
+        // range.range_check(ctx.ctx, a.0, GoldilocksField::BITS);
+        // println!("Cells added: {}", ctx.ctx.advice.len() - before);
     }
 }
 
