@@ -24,6 +24,7 @@ pub trait StateWire<F: BigPrimeField>: Copy + Clone {
     type Item: Copy + Clone;
 }
 
+// This is a combination of PlonkyPermutation and AlgebraicHasher.
 pub trait PermutationChip<F: BigPrimeField>: Clone {
     type StateWire: StateWire<F>;
 
