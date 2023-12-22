@@ -427,7 +427,8 @@ mod tests {
 
         verify_stark_proof(stark, proof_with_pis.clone(), &config)?;
 
-        base_test().k(22).run(|ctx, range| {
+        let k = 22;
+        base_test().k(k).run(|ctx, range| {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
@@ -451,7 +452,7 @@ mod tests {
             stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
             ctx.write_cell_counts_flamegraph(
                 "profile/flamegraph_gl.svg",
-                &format!("Goldilocks (n={})", num_rows),
+                &format!("Goldilocks (n={},k={})", num_rows, k),
             );
         });
 
@@ -480,7 +481,8 @@ mod tests {
 
         verify_stark_proof(stark, proof_with_pis.clone(), &config)?;
 
-        base_test().k(22).run(|ctx, range| {
+        let k = 22;
+        base_test().k(k).run(|ctx, range| {
             // TODO: Create a helper for this
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
@@ -508,7 +510,7 @@ mod tests {
 
             ctx.write_cell_counts_flamegraph(
                 "profile/flamegraph_bn254.svg",
-                &format!("BN254 (n={})", num_rows),
+                &format!("BN254 (n={},k={})", num_rows, k),
             );
         });
 
