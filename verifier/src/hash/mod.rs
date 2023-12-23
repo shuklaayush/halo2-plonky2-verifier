@@ -1,8 +1,11 @@
-use halo2_base::{gates::RangeChip, utils::BigPrimeField};
+use halo2_base::utils::BigPrimeField;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
 use crate::{
-    goldilocks::{base::GoldilocksWire, BoolWire},
+    field::{
+        goldilocks::{base::GoldilocksWire, BoolWire},
+        native::NativeChip,
+    },
     util::context_wrapper::ContextWrapper,
 };
 
@@ -15,7 +18,7 @@ pub trait HashWire<F: BigPrimeField>: Copy + Clone {
     fn to_goldilocks_vec(
         &self,
         ctx: &mut ContextWrapper<F>,
-        range: &RangeChip<F>,
+        native: &NativeChip<F>,
     ) -> Vec<GoldilocksWire<F>>;
 }
 
@@ -28,7 +31,7 @@ pub trait StateWire<F: BigPrimeField>: Copy + Clone {
 pub trait PermutationChip<F: BigPrimeField>: Clone {
     type StateWire: StateWire<F>;
 
-    fn range(&self) -> &RangeChip<F>;
+    fn native(&self) -> &NativeChip<F>;
 
     fn load_zero(&self, ctx: &mut ContextWrapper<F>) -> Self::StateWire;
 

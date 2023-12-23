@@ -1,4 +1,3 @@
-use halo2_base::gates::RangeChip;
 use halo2_base::utils::BigPrimeField;
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -9,8 +8,9 @@ use plonky2::hash::poseidon::{PoseidonHash, SPONGE_WIDTH};
 use verifier_macro::count;
 
 use super::permutation::{PoseidonPermutationChip, PoseidonStateWire};
-use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
-use crate::goldilocks::BoolWire;
+use crate::field::goldilocks::base::{GoldilocksChip, GoldilocksWire};
+use crate::field::goldilocks::BoolWire;
+use crate::field::native::NativeChip;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
 use crate::util::context_wrapper::ContextWrapper;
 
@@ -24,7 +24,7 @@ impl<F: BigPrimeField> HashWire<F> for PoseidonHashWire<F> {
     fn to_goldilocks_vec(
         &self,
         _ctx: &mut ContextWrapper<F>,
-        _range: &RangeChip<F>,
+        _native: &NativeChip<F>,
     ) -> Vec<GoldilocksWire<F>> {
         self.elements.to_vec()
     }
@@ -222,13 +222,16 @@ mod tests {
     use plonky2::hash::poseidon::PoseidonHash;
     use plonky2::plonk::config::Hasher;
 
+    use crate::field::native::NativeChip;
+
     #[test]
     fn test_hash_no_pad() {
-        base_test().k(14).run(|ctx, range| {
+        base_test().k(16).run(|ctx, range| {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native);
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 
             for _ in 0..10 {
@@ -247,11 +250,12 @@ mod tests {
 
     #[test]
     fn test_hash_two_to_one() {
-        base_test().k(14).run(|ctx, range| {
+        base_test().k(16).run(|ctx, range| {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native);
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
 
             for _ in 0..10 {

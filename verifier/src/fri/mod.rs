@@ -1,4 +1,3 @@
-use halo2_base::gates::{RangeChip, RangeInstructions};
 use halo2_base::utils::BigPrimeField;
 use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -11,9 +10,10 @@ use plonky2::util::{log2_strict, reverse_index_bits_in_place};
 
 use verifier_macro::count;
 
-use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
-use crate::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire};
-use crate::goldilocks::BoolWire;
+use crate::field::goldilocks::base::{GoldilocksChip, GoldilocksWire};
+use crate::field::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire};
+use crate::field::goldilocks::BoolWire;
+use crate::field::native::NativeChip;
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::{MerkleCapWire, MerkleProofWire, MerkleTreeChip};
 use crate::util::context_wrapper::ContextWrapper;
@@ -110,9 +110,9 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         }
     }
 
-    pub fn range(&self) -> &RangeChip<F> {
+    pub fn native(&self) -> &NativeChip<F> {
         let goldilocks_chip = self.goldilocks_chip();
-        goldilocks_chip.range()
+        goldilocks_chip.native()
     }
 
     pub fn goldilocks_chip(&self) -> &GoldilocksChip<F> {
@@ -134,11 +134,11 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         fri_pow_response: GoldilocksWire<F>,
         config: &FriConfig,
     ) {
-        let range_chip = self.range();
+        let native = self.native();
         // Assert `proof_of_work_bits` leading zeros in `fri_pow_response`
         // i.e. max value of `fri_pow_response` is less than `2^(64 - proof_of_work_bits)`
-        range_chip.range_check(
-            ctx.ctx,
+        native.range_check(
+            ctx,
             fri_pow_response.0,
             GoldilocksField::BITS - config.proof_of_work_bits as usize,
         );

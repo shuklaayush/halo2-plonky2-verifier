@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 
 use verifier_macro::count;
 
-use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
-use crate::goldilocks::BoolWire;
+use crate::field::goldilocks::base::{GoldilocksChip, GoldilocksWire};
+use crate::field::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 use crate::util::context_wrapper::ContextWrapper;
 
@@ -133,6 +133,7 @@ mod tests {
     use rand::Rng;
     use rand_core::SeedableRng;
 
+    use crate::field::native::NativeChip;
     use crate::hash::poseidon::hash::{PoseidonChip, PoseidonHashWire};
 
     #[test]
@@ -143,7 +144,8 @@ mod tests {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native);
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
             let merkle_chip = MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_chip);
 
@@ -211,7 +213,8 @@ mod tests {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native);
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
             let merkle_chip = MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_chip);
 

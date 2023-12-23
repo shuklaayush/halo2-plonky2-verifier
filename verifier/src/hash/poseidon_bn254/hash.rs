@@ -1,4 +1,3 @@
-use halo2_base::gates::{GateChip, GateInstructions, RangeChip, RangeInstructions};
 use halo2_base::utils::BigPrimeField;
 use halo2_base::AssignedValue;
 use itertools::Itertools;
@@ -11,8 +10,9 @@ use plonky2x::backend::wrapper::poseidon_bn128::WIDTH;
 use verifier_macro::count;
 
 use super::permutation::{PoseidonBN254PermutationChip, PoseidonBN254StateWire};
-use crate::goldilocks::base::GoldilocksWire;
-use crate::goldilocks::BoolWire;
+use crate::field::goldilocks::base::GoldilocksWire;
+use crate::field::goldilocks::BoolWire;
+use crate::field::native::NativeChip;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
 use crate::util::context_wrapper::ContextWrapper;
 
@@ -31,12 +31,12 @@ impl<F: BigPrimeField> HashWire<F> for PoseidonBN254HashWire<F> {
     fn to_goldilocks_vec(
         &self,
         ctx: &mut ContextWrapper<F>,
-        range: &RangeChip<F>,
+        native: &NativeChip<F>,
     ) -> Vec<GoldilocksWire<F>> {
         // TODO: Move to helper
-        range
+        native
             // TODO: No hardcode
-            .decompose_le(ctx.ctx, self.value, 56, 5)
+            .decompose_le(ctx, self.value, 56, 5)
             .iter()
             .map(|&x| GoldilocksWire(x))
             .collect_vec()
@@ -54,17 +54,13 @@ pub struct PoseidonBN254Chip<F: BigPrimeField> {
 //       Generic HasherChip trait?
 //       Assert Somewhere that F = BN254Field or abstract it away
 impl<F: BigPrimeField> PoseidonBN254Chip<F> {
-    pub fn new(range: RangeChip<F>) -> Self {
-        let permutation_chip = PoseidonBN254PermutationChip::new(range);
+    pub fn new(native: NativeChip<F>) -> Self {
+        let permutation_chip = PoseidonBN254PermutationChip::new(native);
         Self { permutation_chip }
     }
 
-    fn gate(&self) -> &GateChip<F> {
-        self.range().gate()
-    }
-
-    fn range(&self) -> &RangeChip<F> {
-        self.permutation_chip().range()
+    fn native(&self) -> &NativeChip<F> {
+        self.permutation_chip().native()
     }
 }
 
@@ -85,7 +81,8 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         ctx: &mut ContextWrapper<F>,
         h: PoseidonBN128HashOut<GoldilocksField>,
     ) -> PoseidonBN254HashWire<F> {
-        let value = ctx.ctx.load_constant(hash_to_fr(h));
+        let native = self.native();
+        let value = native.load_constant(ctx, hash_to_fr(h));
         PoseidonBN254HashWire { value }
     }
 
@@ -95,10 +92,10 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         ctx: &mut ContextWrapper<F>,
         elements: &[GoldilocksWire<F>],
     ) -> PoseidonBN254HashWire<F> {
-        let range = self.range();
+        let native = self.native();
         PoseidonBN254HashWire {
-            value: range.limbs_to_num(
-                ctx.ctx,
+            value: native.limbs_to_num(
+                ctx,
                 elements.iter().map(|x| x.0).collect_vec().as_slice(),
                 GoldilocksField::BITS,
             ),
@@ -113,8 +110,8 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         b: &PoseidonBN254HashWire<F>,
         sel: &BoolWire<F>,
     ) -> PoseidonBN254HashWire<F> {
-        let gate = self.gate();
-        let value = gate.select(ctx.ctx, a.value, b.value, sel.0);
+        let native = self.native();
+        let value = native.select(ctx, a.value, b.value, sel.0);
         PoseidonBN254HashWire { value }
     }
 
@@ -125,8 +122,12 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         arr: &[PoseidonBN254HashWire<F>],
         idx: &GoldilocksWire<F>,
     ) -> PoseidonBN254HashWire<F> {
-        let gate = self.gate();
-        let value = gate.select_from_idx(ctx.ctx, arr.iter().map(|x| x.value), idx.0);
+        let native = self.native();
+        let value = native.select_from_idx(
+            ctx,
+            arr.iter().map(|x| x.value).collect_vec().as_slice(),
+            idx.0,
+        );
         PoseidonBN254HashWire { value }
     }
 
@@ -137,7 +138,8 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         a: &PoseidonBN254HashWire<F>,
         b: &PoseidonBN254HashWire<F>,
     ) {
-        ctx.ctx.constrain_equal(&a.value, &b.value);
+        let native = self.native();
+        native.assert_equal(ctx, &a.value, &b.value);
     }
 
     #[count]
@@ -147,10 +149,11 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         values: &[GoldilocksWire<F>],
     ) -> PoseidonBN254HashWire<F> {
         let permutation_chip = self.permutation_chip();
+        let native = self.native();
 
         let mut state = PoseidonBN254StateWire(
-            ctx.ctx
-                .load_constants(&[F::ZERO; WIDTH])
+            native
+                .load_constants(ctx, &[F::ZERO; WIDTH])
                 .try_into()
                 .unwrap(),
         );
@@ -173,11 +176,12 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
         right: &PoseidonBN254HashWire<F>,
     ) -> PoseidonBN254HashWire<F> {
         let permutation_chip = self.permutation_chip();
+        let native = self.native();
 
         // TODO: Remove extra allocations
         let mut state = PoseidonBN254StateWire(
-            ctx.ctx
-                .load_constants(&[F::ZERO; WIDTH])
+            native
+                .load_constants(ctx, &[F::ZERO; WIDTH])
                 .try_into()
                 .unwrap(),
         );
@@ -197,8 +201,6 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
 #[cfg(test)]
 mod tests {
 
-    use crate::goldilocks::base::GoldilocksChip;
-
     use super::*;
     use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
     use halo2_base::utils::testing::base_test;
@@ -206,14 +208,18 @@ mod tests {
     use plonky2::plonk::config::Hasher;
     use plonky2x::backend::wrapper::plonky2_config::PoseidonBN128Hash;
 
+    use crate::field::goldilocks::base::GoldilocksChip;
+    use crate::field::native::NativeChip;
+
     #[test]
     fn test_hash_no_pad() {
         base_test().k(14).run(|ctx, range| {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
-            let poseidon_chip = PoseidonBN254Chip::new(range.clone()); // TODO: Remove clone, store reference
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native.clone()); // TODO: Remove clone, store reference
+            let poseidon_chip = PoseidonBN254Chip::new(native);
 
             for _ in 0..10 {
                 let preimage = GoldilocksField::rand();
@@ -233,17 +239,18 @@ mod tests {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let poseidon_chip = PoseidonBN254Chip::new(range.clone()); // TODO: Remove clone, store reference
+            let native = NativeChip::<Fr>::new(range.clone());
+            let poseidon_chip = PoseidonBN254Chip::new(native.clone()); // TODO: Remove clone, store reference
 
             for _ in 0..10 {
                 let hash1 = PoseidonBN128Hash::hash_no_pad(&[GoldilocksField::rand()]);
                 let hash1_wire = PoseidonBN254HashWire {
-                    value: ctx.ctx.load_constant(hash_to_fr(hash1)),
+                    value: native.load_constant(ctx, hash_to_fr(hash1)),
                 };
 
                 let hash2 = PoseidonBN128Hash::hash_no_pad(&[GoldilocksField::rand()]);
                 let hash2_wire = PoseidonBN254HashWire {
-                    value: ctx.ctx.load_constant(hash_to_fr(hash2)),
+                    value: native.load_constant(ctx, hash_to_fr(hash2)),
                 };
 
                 let hash_res = PoseidonBN128Hash::two_to_one(hash1, hash2);

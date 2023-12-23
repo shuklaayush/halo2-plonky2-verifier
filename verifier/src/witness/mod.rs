@@ -14,13 +14,13 @@ use starky::proof::{StarkOpeningSet, StarkProof, StarkProofWithPublicInputs};
 use verifier_macro::count;
 
 use crate::{
+    field::goldilocks::{
+        base::{GoldilocksChip, GoldilocksWire},
+        extension::GoldilocksQuadExtWire,
+    },
     fri::{
         FriInitialTreeProofWire, FriOpeningBatchWire, FriOpeningsWire, FriProofWire,
         FriQueryRoundWire, FriQueryStepWire, PolynomialCoeffsExtWire,
-    },
-    goldilocks::{
-        base::{GoldilocksChip, GoldilocksWire},
-        extension::GoldilocksQuadExtWire,
     },
     hash::HasherChip,
     merkle::{MerkleCapWire, MerkleProofWire},

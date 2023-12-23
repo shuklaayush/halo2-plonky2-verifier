@@ -19,13 +19,13 @@ use verifier_macro::count;
 
 use crate::{
     challenger::ChallengerChip,
+    field::goldilocks::{
+        base::GoldilocksWire,
+        extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire},
+    },
     fri::{
         FriBatchInfoWire, FriChallengesWire, FriChip, FriInstanceInfoWire, FriOpeningBatchWire,
         FriOpeningsWire, FriProofWire,
-    },
-    goldilocks::{
-        base::GoldilocksWire,
-        extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire},
     },
     hash::{HashWire, HasherChip, PermutationChip},
     merkle::MerkleCapWire,
@@ -394,7 +394,8 @@ mod tests {
     use starky::prover::prove;
     use starky::verifier::verify_stark_proof;
 
-    use crate::goldilocks::base::GoldilocksChip;
+    use crate::field::goldilocks::base::GoldilocksChip;
+    use crate::field::native::NativeChip;
     use crate::hash::poseidon::hash::PoseidonChip;
     use crate::hash::poseidon_bn254::hash::PoseidonBN254Chip;
     use crate::hash::PermutationChip;
@@ -432,7 +433,8 @@ mod tests {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native);
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
@@ -487,11 +489,13 @@ mod tests {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            // TODO: Abstract away all this boilerplate code into helper
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native.clone());
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
-            let poseidon_bn254_chip = PoseidonBN254Chip::new(range.clone());
+            let poseidon_bn254_chip = PoseidonBN254Chip::new(native.clone());
             let merkle_chip =
                 MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_bn254_chip.clone());
 
@@ -544,7 +548,8 @@ mod tests {
             let mut ctx = ContextWrapper::new(builder.main());
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native);
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
@@ -594,11 +599,12 @@ mod tests {
             let mut ctx = ContextWrapper::new(builder.main());
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native.clone());
             let extension_chip = GoldilocksQuadExtChip::new(goldilocks_chip.clone());
 
             let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
-            let poseidon_bn254_chip = PoseidonBN254Chip::new(range.clone());
+            let poseidon_bn254_chip = PoseidonBN254Chip::new(native.clone());
             let merkle_chip =
                 MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_bn254_chip.clone());
 

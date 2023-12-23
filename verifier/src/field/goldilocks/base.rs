@@ -1,5 +1,3 @@
-use halo2_base::gates::{GateChip, RangeChip};
-use halo2_base::gates::{GateInstructions, RangeInstructions};
 use halo2_base::halo2_proofs::plonk::Assigned;
 use halo2_base::utils::{fe_to_biguint, BigPrimeField};
 use halo2_base::AssignedValue;
@@ -9,6 +7,7 @@ use plonky2::field::types::{Field, Field64, PrimeField64};
 
 use verifier_macro::count;
 
+use crate::field::native::NativeChip;
 use crate::util::context_wrapper::ContextWrapper;
 
 use super::BoolWire;
@@ -50,7 +49,7 @@ impl<F: BigPrimeField> GoldilocksWire<F> {
 //       Generic FieldChip trait?
 #[derive(Debug, Clone)]
 pub struct GoldilocksChip<F: BigPrimeField> {
-    pub range: RangeChip<F>, // TODO: Change to reference and add lifetime?
+    pub native: NativeChip<F>, // TODO: Change to reference and add lifetime?
 }
 
 // TODO: Abstract away as generic FieldChip trait?
@@ -58,17 +57,12 @@ pub struct GoldilocksChip<F: BigPrimeField> {
 //       Pass values instead of references since they are cheap to copy?
 //       Assert somewhere that F ~ 256 bits
 impl<F: BigPrimeField> GoldilocksChip<F> {
-    pub fn new(range: RangeChip<F>) -> Self {
-        Self { range }
+    pub fn new(native: NativeChip<F>) -> Self {
+        Self { native }
     }
 
-    pub fn gate(&self) -> &GateChip<F> {
-        self.range.gate()
-    }
-
-    // TODO: Rename to range_chip?
-    pub fn range(&self) -> &RangeChip<F> {
-        &self.range
+    pub fn native(&self) -> &NativeChip<F> {
+        &self.native
     }
 
     // TODO: Keep a track of constants loaded to avoid loading them multiple times?
@@ -79,8 +73,9 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         ctx: &mut ContextWrapper<F>,
         a: GoldilocksField,
     ) -> GoldilocksWire<F> {
+        let native = self.native();
         let a = a.to_canonical_u64();
-        GoldilocksWire(ctx.ctx.load_constant(F::from(a)))
+        GoldilocksWire(native.load_constant(ctx, F::from(a)))
     }
 
     #[count]
@@ -136,8 +131,9 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         ctx: &mut ContextWrapper<F>,
         a: GoldilocksField,
     ) -> GoldilocksWire<F> {
+        let native = self.native();
         let a = a.to_canonical_u64();
-        let wire = GoldilocksWire(ctx.ctx.load_witness(F::from(a)));
+        let wire = GoldilocksWire(native.load_witness(ctx, F::from(a)));
         // Ensure that the witness is in the Goldilocks field
         self.range_check(ctx, &wire);
         wire
@@ -151,9 +147,8 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         b: &GoldilocksWire<F>,
         sel: &BoolWire<F>,
     ) -> GoldilocksWire<F> {
-        let gate = self.gate();
-
-        GoldilocksWire(gate.select(ctx.ctx, a.0, b.0, sel.0))
+        let native = self.native();
+        GoldilocksWire(native.select(ctx, a.0, b.0, sel.0))
     }
 
     #[count]
@@ -164,11 +159,10 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         b: [GoldilocksWire<F>; N],
         sel: &BoolWire<F>,
     ) -> [GoldilocksWire<F>; N] {
-        let gate = self.gate();
-
+        let native = self.native();
         a.iter()
             .zip(b.iter())
-            .map(|(a, b)| GoldilocksWire(gate.select(ctx.ctx, a.0, b.0, sel.0)))
+            .map(|(a, b)| GoldilocksWire(native.select(ctx, a.0, b.0, sel.0)))
             .collect::<Vec<GoldilocksWire<F>>>()
             .try_into() // TODO: There must be a better way than try_into
             .unwrap()
@@ -181,11 +175,10 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         arr: &[GoldilocksWire<F>],
         idx: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        let gate = self.gate();
-
-        GoldilocksWire(gate.select_from_idx(
-            ctx.ctx,
-            arr.iter().map(|x| x.0).collect::<Vec<_>>(),
+        let native = self.native();
+        GoldilocksWire(native.select_from_idx(
+            ctx,
+            arr.iter().map(|x| x.0).collect::<Vec<_>>().as_slice(),
             idx.0,
         ))
     }
@@ -197,11 +190,11 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         arr: &[[GoldilocksWire<F>; N]],
         idx: &GoldilocksWire<F>,
     ) -> [GoldilocksWire<F>; N] {
-        let gate = self.gate();
+        let native = self.native();
 
-        let indicator = gate.idx_to_indicator(ctx.ctx, idx.0, arr.len());
-        let native_arr = gate.select_array_by_indicator(
-            ctx.ctx,
+        let indicator = native.idx_to_indicator(ctx, idx.0, arr.len());
+        let native_arr = native.select_array_by_indicator(
+            ctx,
             arr.iter()
                 .map(|inner| inner.iter().map(|x| x.0).collect::<Vec<_>>())
                 .collect::<Vec<_>>()
@@ -224,9 +217,9 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         a: &GoldilocksWire<F>,
         range_bits: usize,
     ) -> Vec<BoolWire<F>> {
-        let gate = self.gate();
+        let native = self.native();
 
-        let native_bits = gate.num_to_bits(ctx.ctx, a.0, range_bits);
+        let native_bits = native.num_to_bits(ctx, a.0, range_bits);
         native_bits.iter().map(|&x| BoolWire(x)).collect::<Vec<_>>()
     }
 
@@ -236,13 +229,10 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         ctx: &mut ContextWrapper<F>,
         bits: &[BoolWire<F>],
     ) -> GoldilocksWire<F> {
-        let gate = self.gate();
-
-        // TODO: halo2-lib doesn't use horner's trick so allocates extra 2^i constants
-        GoldilocksWire(gate.bits_to_num(
-            ctx.ctx,
-            bits.iter().map(|x| x.0).collect::<Vec<_>>().as_slice(),
-        ))
+        let native = self.native();
+        GoldilocksWire(
+            native.bits_to_num(ctx, bits.iter().map(|x| x.0).collect::<Vec<_>>().as_slice()),
+        )
     }
 
     #[count]
@@ -258,8 +248,8 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        let gate = self.gate();
-        GoldilocksWire(gate.add(ctx.ctx, a.0, b.0))
+        let native = self.native();
+        GoldilocksWire(native.add(ctx, a.0, b.0))
     }
 
     #[count]
@@ -280,9 +270,9 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        let gate = self.gate();
+        let native = self.native();
         let neg_one = self.load_neg_one(ctx);
-        GoldilocksWire(gate.mul_add(ctx.ctx, b.0, neg_one.0, a.0))
+        GoldilocksWire(native.mul_add(ctx, b.0, neg_one.0, a.0))
     }
 
     #[count]
@@ -303,8 +293,8 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        let gate = self.gate();
-        GoldilocksWire(gate.mul(ctx.ctx, a.0, b.0))
+        let native = self.native();
+        GoldilocksWire(native.mul(ctx, a.0, b.0))
     }
 
     #[count]
@@ -326,8 +316,8 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         b: &GoldilocksWire<F>,
         c: &GoldilocksWire<F>,
     ) -> GoldilocksWire<F> {
-        let gate = self.gate();
-        GoldilocksWire(gate.mul_add(ctx.ctx, a.0, b.0, c.0))
+        let native = self.native();
+        GoldilocksWire(native.mul_add(ctx, a.0, b.0, c.0))
     }
 
     #[count]
@@ -371,11 +361,11 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         let remainder = self.load_witness(ctx, remainder);
 
         // 3. Constrain witnesses
-        let gate = self.gate();
-        let p = ctx.ctx.load_constant(F::from(GoldilocksField::ORDER));
-        let rhs = gate.mul_add(ctx.ctx, quotient.0, p, remainder.0);
+        let native = self.native();
+        let p = native.load_constant(ctx, F::from(GoldilocksField::ORDER));
+        let rhs = native.mul_add(ctx, quotient.0, p, remainder.0);
 
-        gate.is_equal(ctx.ctx, a.0, rhs);
+        native.assert_equal(ctx, &a.0, &rhs);
 
         // Return
         remainder
@@ -459,22 +449,23 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     }
 
     #[count]
+    pub fn range_check(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) {
+        let native = self.native();
+        // let before = ctx.ctx.advice.len();
+        native.check_less_than_safe(ctx, a.0, GoldilocksField::ORDER);
+        // native.range_check(ctx, a.0, GoldilocksField::BITS);
+        // println!("Cells added: {}", ctx.ctx.advice.len() - before);
+    }
+
+    #[count]
     pub fn assert_equal(
         &self,
         ctx: &mut ContextWrapper<F>,
         a: &GoldilocksWire<F>,
         b: &GoldilocksWire<F>,
     ) {
-        ctx.ctx.constrain_equal(&a.0, &b.0);
-    }
-
-    #[count]
-    pub fn range_check(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksWire<F>) {
-        let range = self.range();
-        // let before = ctx.ctx.advice.len();
-        range.check_less_than_safe(ctx.ctx, a.0, GoldilocksField::ORDER);
-        // range.range_check(ctx.ctx, a.0, GoldilocksField::BITS);
-        // println!("Cells added: {}", ctx.ctx.advice.len() - before);
+        let native = self.native();
+        native.assert_equal(ctx, &a.0, &b.0);
     }
 }
 
@@ -492,7 +483,8 @@ mod tests {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let gl_chip = GoldilocksChip::<Fr>::new(range.clone()); // TODO: Remove clone, store reference
+            let native = NativeChip::<Fr>::new(range.clone()); // TODO: Remove clone, store reference
+            let gl_chip = GoldilocksChip::new(native);
 
             for _ in 0..100 {
                 let a = GoldilocksField::rand();

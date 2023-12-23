@@ -428,6 +428,22 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         curr
     }
 
+    // TODO: There should be a way to do this without reducing every step
+    #[count]
+    pub fn reduce_with_powers(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        terms: &[GoldilocksQuadExtWire<F>],
+        scalar: &GoldilocksQuadExtWire<F>,
+    ) -> GoldilocksQuadExtWire<F> {
+        let mut sum = self.load_zero(ctx);
+        for term in terms.iter().rev() {
+            sum = self.mul(ctx, &sum, scalar);
+            sum = self.add(ctx, &sum, term);
+        }
+        sum
+    }
+
     #[count]
     pub fn range_check(&self, ctx: &mut ContextWrapper<F>, a: &GoldilocksQuadExtWire<F>) {
         let GoldilocksQuadExtWire([a0, a1]) = a;
@@ -449,32 +465,18 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         self.goldilocks_chip.assert_equal(ctx, a0, b0);
         self.goldilocks_chip.assert_equal(ctx, a1, b1);
     }
-
-    // TODO: There should be a way to do this without reducing every step
-    #[count]
-    pub fn reduce_with_powers(
-        &self,
-        ctx: &mut ContextWrapper<F>,
-        terms: &[GoldilocksQuadExtWire<F>],
-        scalar: &GoldilocksQuadExtWire<F>,
-    ) -> GoldilocksQuadExtWire<F> {
-        let mut sum = self.load_zero(ctx);
-        for term in terms.iter().rev() {
-            sum = self.mul_no_reduce(ctx, &sum, scalar);
-            sum = self.add_no_reduce(ctx, &sum, term);
-            sum = self.reduce(ctx, &sum);
-        }
-        sum
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
     use halo2_base::utils::testing::base_test;
     use plonky2::field::extension::quadratic::QuadraticExtension;
     use plonky2::field::types::Sample;
+
+    use crate::field::native::NativeChip;
 
     #[test]
     fn test_goldilocks_extension_chip() {
@@ -482,7 +484,8 @@ mod tests {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let gl_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone()); // TODO: Remove clone, store reference
+            let gl_chip = GoldilocksChip::new(native);
             let gle_chip = GoldilocksQuadExtChip::new(gl_chip);
 
             for _ in 0..100 {

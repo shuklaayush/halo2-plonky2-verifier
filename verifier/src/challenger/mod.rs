@@ -1,4 +1,3 @@
-use halo2_base::gates::RangeChip;
 use halo2_base::utils::BigPrimeField;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::fri::FriConfig;
@@ -8,9 +7,10 @@ use starky::stark::Stark;
 
 use verifier_macro::count;
 
+use crate::field::goldilocks::base::GoldilocksWire;
+use crate::field::goldilocks::extension::GoldilocksQuadExtWire;
+use crate::field::native::NativeChip;
 use crate::fri::{FriChallengesWire, FriOpeningsWire, FriProofWire, PolynomialCoeffsExtWire};
-use crate::goldilocks::base::GoldilocksWire;
-use crate::goldilocks::extension::GoldilocksQuadExtWire;
 use crate::hash::{HashWire, PermutationChip};
 use crate::merkle::MerkleCapWire;
 use crate::stark::{StarkProofChallengesWire, StarkProofWire};
@@ -35,8 +35,8 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
         }
     }
 
-    pub fn range(&self) -> &RangeChip<F> {
-        self.permutation_chip().range()
+    pub fn native(&self) -> &NativeChip<F> {
+        self.permutation_chip().native()
     }
 
     pub fn permutation_chip(&self) -> &PC {
@@ -59,8 +59,8 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
     // TODO: What if we want to observe a different hash type than the one used by the challenger's hasher chip?
     #[count]
     pub fn observe_hash(&mut self, ctx: &mut ContextWrapper<F>, hash: &impl HashWire<F>) {
-        let range = self.range();
-        self.observe_elements(hash.to_goldilocks_vec(ctx, range).as_slice())
+        let native = self.native();
+        self.observe_elements(hash.to_goldilocks_vec(ctx, native).as_slice())
     }
 
     #[count]

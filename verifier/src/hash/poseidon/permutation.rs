@@ -1,4 +1,3 @@
-use halo2_base::gates::RangeChip;
 use halo2_base::utils::BigPrimeField;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
@@ -9,7 +8,8 @@ use plonky2::hash::poseidon::{
 
 use verifier_macro::count;
 
-use crate::goldilocks::base::{GoldilocksChip, GoldilocksWire};
+use crate::field::goldilocks::base::{GoldilocksChip, GoldilocksWire};
+use crate::field::native::NativeChip;
 use crate::hash::{PermutationChip, StateWire};
 use crate::util::context_wrapper::ContextWrapper;
 
@@ -265,8 +265,8 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
 impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
     type StateWire = PoseidonStateWire<F>;
 
-    fn range(&self) -> &RangeChip<F> {
-        self.goldilocks_chip.range()
+    fn native(&self) -> &NativeChip<F> {
+        self.goldilocks_chip.native()
     }
 
     fn load_zero(&self, ctx: &mut ContextWrapper<F>) -> PoseidonStateWire<F> {
@@ -328,13 +328,16 @@ mod tests {
     use halo2_base::utils::testing::base_test;
     use plonky2::field::{goldilocks_field::GoldilocksField, types::Sample};
 
+    use crate::field::native::NativeChip;
+
     #[test]
     fn test_permute() {
-        base_test().k(14).run(|ctx, range| {
+        base_test().k(16).run(|ctx, range| {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let goldilocks_chip = GoldilocksChip::<Fr>::new(range.clone());
+            let native = NativeChip::<Fr>::new(range.clone());
+            let goldilocks_chip = GoldilocksChip::new(native);
             let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip.clone()); // TODO: Remove clone, use reference
 
             for _ in 0..10 {
