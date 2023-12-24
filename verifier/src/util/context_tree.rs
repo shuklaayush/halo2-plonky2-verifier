@@ -164,7 +164,10 @@ impl ContextTree {
 
         let mut options = Options::default();
         options.title = title.to_string();
+        // TODO: Subtitle
+        // options.subtitle = title.to_string();
         options.count_name = "cells".to_string();
+        options.deterministic = true;
 
         if reverse {
             options.direction = Direction::Inverted;
