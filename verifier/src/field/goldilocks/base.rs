@@ -117,15 +117,6 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     }
 
     #[count]
-    pub fn load_constant_vec(
-        &self,
-        ctx: &mut ContextWrapper<F>,
-        a: &Vec<GoldilocksField>,
-    ) -> Vec<GoldilocksWire<F>> {
-        a.iter().map(|a| self.load_constant(ctx, *a)).collect_vec()
-    }
-
-    #[count]
     pub fn load_witness(
         &self,
         ctx: &mut ContextWrapper<F>,

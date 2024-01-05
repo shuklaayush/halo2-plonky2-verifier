@@ -4,7 +4,7 @@ use halo2_base::utils::BigPrimeField;
 use itertools::Itertools;
 use plonky2::{
     field::{
-        extension::quadratic::QuadraticExtension, goldilocks_field::GoldilocksField, types::Field,
+        goldilocks_field::GoldilocksField, types::Field,
     },
     fri::structure::{FriOracleInfo, FriPolynomialInfo},
 };
@@ -203,33 +203,33 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
         FriInstanceInfoWire { oracles, batches }
     }
 
-    fn eval_l_0_and_l_last_circuit(
-        &self,
-        ctx: &mut ContextWrapper<F>,
-        log_n: usize,
-        x: GoldilocksQuadExtWire<F>,
-        z_x: GoldilocksQuadExtWire<F>,
-    ) -> (GoldilocksQuadExtWire<F>, GoldilocksQuadExtWire<F>) {
-        let extension_chip = self.extension_chip();
+    // fn eval_l_0_and_l_last_circuit(
+    //     &self,
+    //     ctx: &mut ContextWrapper<F>,
+    //     log_n: usize,
+    //     x: GoldilocksQuadExtWire<F>,
+    //     z_x: GoldilocksQuadExtWire<F>,
+    // ) -> (GoldilocksQuadExtWire<F>, GoldilocksQuadExtWire<F>) {
+    //     let extension_chip = self.extension_chip();
 
-        let n = extension_chip.load_constant(
-            ctx,
-            QuadraticExtension::<GoldilocksField>::from_canonical_usize(1 << log_n),
-        );
-        let g = extension_chip.load_constant(
-            ctx,
-            QuadraticExtension::<GoldilocksField>::primitive_root_of_unity(log_n),
-        );
-        let one = extension_chip.load_one(ctx);
-        let l_0_deno = extension_chip.mul_sub(ctx, &n, &x, &n);
-        let l_last_deno = extension_chip.mul_sub(ctx, &g, &x, &one);
-        let l_last_deno = extension_chip.mul(ctx, &n, &l_last_deno);
+    //     let n = extension_chip.load_constant(
+    //         ctx,
+    //         QuadraticExtension::<GoldilocksField>::from_canonical_usize(1 << log_n),
+    //     );
+    //     let g = extension_chip.load_constant(
+    //         ctx,
+    //         QuadraticExtension::<GoldilocksField>::primitive_root_of_unity(log_n),
+    //     );
+    //     let one = extension_chip.load_one(ctx);
+    //     let l_0_deno = extension_chip.mul_sub(ctx, &n, &x, &n);
+    //     let l_last_deno = extension_chip.mul_sub(ctx, &g, &x, &one);
+    //     let l_last_deno = extension_chip.mul(ctx, &n, &l_last_deno);
 
-        (
-            extension_chip.div(ctx, &z_x, &l_0_deno),
-            extension_chip.div(ctx, &z_x, &l_last_deno),
-        )
-    }
+    //     (
+    //         extension_chip.div(ctx, &z_x, &l_0_deno),
+    //         extension_chip.div(ctx, &z_x, &l_last_deno),
+    //     )
+    // }
 
     #[count]
     pub fn verify_proof_with_challenges<S: Stark<GoldilocksField, 2>>(
