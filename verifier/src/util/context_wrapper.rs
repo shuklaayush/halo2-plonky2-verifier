@@ -33,11 +33,10 @@ impl<'ctx, F: ScalarField> ContextWrapper<'ctx, F> {
         self.tree.pop(self.num_cells());
     }
 
-    // TODO: Remove min_delta if flamegraph is good.
-    pub fn print_cell_counts(&self, min_delta: usize) {
+    pub fn print_cell_counts(&self) {
         // Print cell counts for each context.
         self.tree
-            .filter(self.num_cells(), min_delta)
+            // .filter(self.num_cells(), min_delta)
             .print(self.num_cells());
 
         // TODO: Accumulate counts for each function and print aggregate counts.

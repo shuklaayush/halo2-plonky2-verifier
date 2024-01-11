@@ -3,9 +3,7 @@ use core::iter::once;
 use halo2_base::utils::BigPrimeField;
 use itertools::Itertools;
 use plonky2::{
-    field::{
-        goldilocks_field::GoldilocksField, types::Field,
-    },
+    field::{goldilocks_field::GoldilocksField, types::Field},
     fri::structure::{FriOracleInfo, FriPolynomialInfo},
 };
 use starky::{
@@ -453,6 +451,8 @@ mod tests {
 
             stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
 
+            // ctx.write_cell_counts("profile/gl.txt");
+
             let title = format!("Goldilocks (n={},k={})", num_rows, k);
             ctx.write_cell_counts_flamegraph("profile/gl.svg", &title);
             ctx.write_cell_counts_flamegraph_reversed("profile/gl_rev.svg", &title);
@@ -511,6 +511,8 @@ mod tests {
             let proof_with_pis = witness_chip.load_proof_with_pis(ctx, proof_with_pis);
 
             stark_chip.verify_proof(ctx, stark, proof_with_pis, &config);
+
+            // ctx.write_cell_counts("profile/bn254.txt");
 
             let title = format!("BN254 (n={},k={})", num_rows, k);
             ctx.write_cell_counts_flamegraph("profile/bn254.svg", &title);

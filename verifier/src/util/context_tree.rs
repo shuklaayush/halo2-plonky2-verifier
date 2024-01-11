@@ -146,7 +146,7 @@ impl ContextTree {
             child.write_helper(buffer, current_cell_count, full_name.as_str());
             count -= child.cell_count_delta(current_cell_count);
         }
-        if !full_name.is_empty() {
+        if !full_name.is_empty() && count > 0 {
             writeln!(buffer, "{} {}", full_name, count).expect("Failed to write to buffer");
         }
     }
