@@ -388,7 +388,6 @@ mod tests {
     use plonky2::util::timing::TimingTree;
     use plonky2x::backend::wrapper::plonky2_config::PoseidonBN128GoldilocksConfig;
     use starky::config::StarkConfig;
-    use starky::fibonacci_stark::FibonacciStark;
     use starky::prover::prove;
     use starky::verifier::verify_stark_proof;
 
@@ -398,6 +397,7 @@ mod tests {
     use crate::hash::poseidon_bn254::hash::PoseidonBN254Chip;
     use crate::hash::PermutationChip;
     use crate::merkle::MerkleTreeChip;
+    use crate::test_util::fibonacci_stark::FibonacciStark;
     use crate::witness::WitnessChip;
 
     fn fibonacci<F: Field_plonky2>(n: usize, x0: F, x1: F) -> F {
