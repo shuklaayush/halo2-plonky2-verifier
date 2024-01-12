@@ -225,8 +225,7 @@ mod tests {
     #[test]
     fn test_hash_no_pad() {
         base_test().k(14).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native.clone()); // TODO: Remove clone, store reference
@@ -247,8 +246,7 @@ mod tests {
     #[test]
     fn test_hash_two_to_one() {
         base_test().k(14).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let poseidon_chip = PoseidonBN254Chip::new(native.clone()); // TODO: Remove clone, store reference

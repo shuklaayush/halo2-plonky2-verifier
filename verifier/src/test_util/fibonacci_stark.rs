@@ -143,7 +143,6 @@ mod tests {
     use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, PoseidonGoldilocksConfig};
     use plonky2::util::timing::TimingTree;
     use starky::config::StarkConfig;
-    use starky::fibonacci_stark::FibonacciStark;
     use starky::proof::StarkProofWithPublicInputs;
     use starky::prover::prove;
     use starky::recursive_verifier::{
@@ -153,6 +152,8 @@ mod tests {
     use starky::stark::Stark;
     use starky::stark_testing::{test_stark_circuit_constraints, test_stark_low_degree};
     use starky::verifier::verify_stark_proof;
+
+    use crate::test_util::fibonacci_stark::FibonacciStark;
 
     fn fibonacci<F: Field>(n: usize, x0: F, x1: F) -> F {
         (0..n).fold((x0, x1), |x, _| (x.1, x.0 + x.1)).1

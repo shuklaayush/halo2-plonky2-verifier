@@ -1,5 +1,4 @@
 use halo2_base::utils::BigPrimeField;
-use itertools::Itertools;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::hash::hash_types::{HashOut, NUM_HASH_OUT_ELTS};
@@ -50,10 +49,6 @@ pub struct PoseidonChip<F: BigPrimeField> {
     pub permutation_chip: PoseidonPermutationChip<F>,
 }
 
-// TODO: Maybe make generic over chip type?
-//       Change back to Self::f(ctx, chip, state) instead of self.f(ctx, state)?
-//       assert_equal for hash
-//       Generic HasherChip trait?
 impl<F: BigPrimeField> PoseidonChip<F> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>) -> Self {
         let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip);
@@ -96,7 +91,7 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
     ) -> PoseidonHashWire<F> {
         let goldilocks_chip = self.goldilocks_chip();
         PoseidonHashWire {
-            elements: goldilocks_chip.load_witness_array(ctx, &h.elements),
+            elements: goldilocks_chip.load_constant_array(ctx, &h.elements),
         }
     }
 
@@ -233,8 +228,7 @@ mod tests {
     #[test]
     fn test_hash_no_pad() {
         base_test().k(16).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native);
@@ -257,8 +251,7 @@ mod tests {
     #[test]
     fn test_hash_two_to_one() {
         base_test().k(16).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native);

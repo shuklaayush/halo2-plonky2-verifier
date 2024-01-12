@@ -106,8 +106,6 @@ pub struct StarkChip<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>
     fri_chip: FriChip<F, HC>,
 }
 
-// TODO: Remove all chips and replace with a single CircuitBuilderChip?
-//       To make it consistent with the plonky2 code.
 impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, HC, PC> {
     pub fn new(challenger_chip: ChallengerChip<F, PC>, fri_chip: FriChip<F, HC>) -> Self {
         Self {
@@ -347,7 +345,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>, PC: PermutationChip<F>> StarkChip<F, H
 
     #[count]
     pub fn verify_proof<S: Stark<GoldilocksField, 2>>(
-        &mut self, // TODO: Make this immutable
+        &mut self,
         ctx: &mut ContextWrapper<F>,
         stark: S,
         proof_with_pis: StarkProofWithPublicInputsWire<F, HC::HashWire>,
@@ -428,8 +426,7 @@ mod tests {
 
         let k = 22;
         base_test().k(k).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native);
@@ -485,9 +482,7 @@ mod tests {
 
         let k = 22;
         base_test().k(k).run(|ctx, range| {
-            // TODO: Create a helper for this
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             // TODO: Abstract away all this boilerplate code into helper
             let native = NativeChip::<Fr>::new(range.clone());
@@ -546,8 +541,7 @@ mod tests {
 
         let k = 22;
         base_test().k(k).bench_builder((), (), |builder, range, _| {
-            let mut ctx = ContextWrapper::new(builder.main());
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(builder.main());
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native);
@@ -597,8 +591,7 @@ mod tests {
 
         let k = 22;
         base_test().k(k).bench_builder((), (), |builder, range, _| {
-            let mut ctx = ContextWrapper::new(builder.main());
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(builder.main());
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native.clone());

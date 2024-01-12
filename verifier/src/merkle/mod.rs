@@ -37,7 +37,6 @@ pub struct MerkleTreeChip<F: BigPrimeField, HC: HasherChip<F>> {
     hasher_chip: HC,
 }
 
-// TODO: Generalize for field extensions
 impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>, hasher_chip: HC) -> Self {
         Self {
@@ -78,8 +77,6 @@ impl<F: BigPrimeField, HC: HasherChip<F>> MerkleTreeChip<F, HC> {
         hasher_chip.assert_equal(ctx, &root, &node);
     }
 
-    // TODO: This is effectively checking doing merkle proof for a subtree
-    //       Maybe there's a bettter abstraction?
     #[count]
     pub fn verify_proof_to_cap(
         &self,
@@ -141,12 +138,11 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         base_test().k(14).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native);
-            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
+            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
             let merkle_chip = MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_chip);
 
             for _ in 0..2 {
@@ -210,12 +206,11 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         base_test().k(14).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native);
-            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone()); // TODO: Remove clone, store reference
+            let poseidon_chip = PoseidonChip::new(goldilocks_chip.clone());
             let merkle_chip = MerkleTreeChip::new(goldilocks_chip.clone(), poseidon_chip);
 
             for _ in 0..2 {

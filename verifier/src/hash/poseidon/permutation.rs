@@ -31,7 +31,6 @@ pub struct PoseidonPermutationChip<F: BigPrimeField> {
     goldilocks_chip: GoldilocksChip<F>,
 }
 
-// TODO: Use custom poseidon gate and mds gate?
 impl<F: BigPrimeField> PoseidonPermutationChip<F> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>) -> Self {
         Self { goldilocks_chip }
@@ -58,7 +57,6 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
                 ctx,
                 GoldilocksField::from_canonical_u64(GoldilocksField::MDS_MATRIX_CIRC[i]),
             );
-            // TODO: Replace with mul_const_add
             res = chip.mul_add(ctx, &c, &v[(i + r) % SPONGE_WIDTH], &res);
         }
         {
@@ -66,14 +64,12 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
                 ctx,
                 GoldilocksField::from_canonical_u64(GoldilocksField::MDS_MATRIX_DIAG[r]),
             );
-            // TODO: Replace with mul_const_add
             res = chip.mul_add(ctx, &c, &v[r], &res);
         }
 
         res
     }
 
-    // TODO: Why not mutate state?
     #[count]
     fn mds_layer(
         &self,
@@ -82,7 +78,6 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
     ) -> PoseidonStateWire<F> {
         let chip = self.goldilocks_chip();
 
-        // TODO: Ugly
         let mut result = chip.load_constant_array(ctx, &[GoldilocksField::ZERO; SPONGE_WIDTH]);
         for r in 0..SPONGE_WIDTH {
             result[r] = self.mds_row_shf(ctx, r, &state.0);
@@ -122,7 +117,6 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
         result[0] = state.0[0];
 
         // TODO: Can I use inner product gate instead of nested for loop?
-        //       Reduce at end
         for r in 1..SPONGE_WIDTH {
             for c in 1..SPONGE_WIDTH {
                 let t = chip.load_constant(
@@ -253,13 +247,11 @@ impl<F: BigPrimeField> PoseidonPermutationChip<F> {
     ) {
         for _ in 0..HALF_N_FULL_ROUNDS {
             self.constant_layer(ctx, state, *round_ctr);
-            // TODO: Check if &mut state ensures that inputs and outputs are properly constrained
             self.sbox_layer(ctx, state);
             *state = self.mds_layer(ctx, state);
             *round_ctr += 1;
         }
     }
-    // TODO: Add `poseidon` function?
 }
 
 impl<F: BigPrimeField> PermutationChip<F> for PoseidonPermutationChip<F> {
@@ -333,12 +325,11 @@ mod tests {
     #[test]
     fn test_permute() {
         base_test().k(16).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let goldilocks_chip = GoldilocksChip::new(native);
-            let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip.clone()); // TODO: Remove clone, use reference
+            let permutation_chip = PoseidonPermutationChip::new(goldilocks_chip.clone());
 
             for _ in 0..10 {
                 let state_in = GoldilocksField::rand_array();

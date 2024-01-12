@@ -9,25 +9,22 @@ use crate::util::context_wrapper::ContextWrapper;
 
 #[derive(Debug, Clone)]
 pub struct NativeChip<F: BigPrimeField> {
-    pub range: RangeChip<F>, // TODO: Change to reference and add lifetime?
+    range_chip: RangeChip<F>,
 }
 
 impl<F: BigPrimeField> NativeChip<F> {
-    pub fn new(range: RangeChip<F>) -> Self {
-        Self { range }
+    pub fn new(range_chip: RangeChip<F>) -> Self {
+        Self { range_chip }
     }
 
-    pub fn gate(&self) -> &GateChip<F> {
-        self.range.gate()
+    pub fn gate_chip(&self) -> &GateChip<F> {
+        self.range_chip.gate()
     }
 
-    // TODO: Rename to range_chip?
-    pub fn range(&self) -> &RangeChip<F> {
-        &self.range
+    pub fn range_chip(&self) -> &RangeChip<F> {
+        &self.range_chip
     }
 
-    // TODO: Keep a track of constants loaded to avoid loading them multiple times?
-    //       Maybe do range check
     #[count]
     pub fn load_constant(&self, ctx: &mut ContextWrapper<F>, a: F) -> AssignedValue<F> {
         ctx.ctx.load_constant(a)
@@ -55,7 +52,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         a: AssignedValue<F>,
         b: AssignedValue<F>,
     ) -> AssignedValue<F> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         gate.add(ctx.ctx, a, b)
     }
 
@@ -66,7 +63,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         a: AssignedValue<F>,
         b: AssignedValue<F>,
     ) -> AssignedValue<F> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         gate.mul(ctx.ctx, a, b)
     }
 
@@ -78,7 +75,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         b: AssignedValue<F>,
         c: AssignedValue<F>,
     ) -> AssignedValue<F> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         gate.mul_add(ctx.ctx, a, b, c)
     }
 
@@ -90,7 +87,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         b: AssignedValue<F>,
         sel: AssignedValue<F>,
     ) -> AssignedValue<F> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         gate.select(ctx.ctx, a, b, sel)
     }
 
@@ -102,7 +99,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         arr: &[AssignedValue<F>],
         idx: AssignedValue<F>,
     ) -> AssignedValue<F> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         gate.select_from_idx(ctx.ctx, arr.to_vec(), idx)
     }
 
@@ -113,7 +110,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         array2d: &[Vec<AssignedValue<F>>],
         indicator: &[AssignedValue<F>],
     ) -> Vec<AssignedValue<F>> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         gate.select_array_by_indicator(ctx.ctx, array2d, indicator)
     }
 
@@ -124,7 +121,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         idx: AssignedValue<F>,
         len: usize,
     ) -> Vec<AssignedValue<F>> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         gate.idx_to_indicator(ctx.ctx, idx, len)
     }
 
@@ -135,7 +132,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         a: AssignedValue<F>,
         range_bits: usize,
     ) -> Vec<AssignedValue<F>> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         gate.num_to_bits(ctx.ctx, a, range_bits)
     }
 
@@ -145,7 +142,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         ctx: &mut ContextWrapper<F>,
         bits: &[AssignedValue<F>],
     ) -> AssignedValue<F> {
-        let gate = self.gate();
+        let gate = self.gate_chip();
         // TODO: halo2-lib doesn't use horner's trick so allocates extra 2^i constants
         gate.bits_to_num(ctx.ctx, bits)
     }
@@ -158,7 +155,7 @@ impl<F: BigPrimeField> NativeChip<F> {
         limb_bits: usize,
         num_limbs: usize,
     ) -> Vec<AssignedValue<F>> {
-        let range = self.range();
+        let range = self.range_chip();
         range.decompose_le(ctx.ctx, num, limb_bits, num_limbs)
     }
 
@@ -169,19 +166,19 @@ impl<F: BigPrimeField> NativeChip<F> {
         limbs: &[AssignedValue<F>],
         limb_bits: usize,
     ) -> AssignedValue<F> {
-        let range = self.range();
+        let range = self.range_chip();
         range.limbs_to_num(ctx.ctx, limbs, limb_bits)
     }
 
     #[count]
     pub fn check_less_than_safe(&self, ctx: &mut ContextWrapper<F>, a: AssignedValue<F>, b: u64) {
-        let range = self.range();
+        let range = self.range_chip();
         range.check_less_than_safe(ctx.ctx, a, b)
     }
 
     #[count]
     pub fn range_check(&self, ctx: &mut ContextWrapper<F>, a: AssignedValue<F>, range_bits: usize) {
-        let range = self.range();
+        let range = self.range_chip();
         range.range_check(ctx.ctx, a, range_bits)
     }
 

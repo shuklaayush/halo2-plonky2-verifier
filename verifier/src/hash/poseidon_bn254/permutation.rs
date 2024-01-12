@@ -259,7 +259,6 @@ mod tests {
     use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
     use halo2_base::utils::testing::base_test;
     use itertools::Itertools;
-    // TODO: typo
     use plonky2x::backend::wrapper::poseidon_bn128::permution;
     use rand::rngs::StdRng;
     use rand_core::SeedableRng;
@@ -269,11 +268,10 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0u64);
 
         base_test().k(14).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native_chip = NativeChip::new(range.clone());
-            let permutation_chip = PoseidonBN254PermutationChip::new(native_chip.clone()); // TODO: Remove clone, use reference
+            let permutation_chip = PoseidonBN254PermutationChip::new(native_chip.clone());
 
             for _ in 0..10 {
                 let mut state: [Fr_plonky2x; WIDTH] = (0..WIDTH)

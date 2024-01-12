@@ -473,8 +473,7 @@ mod tests {
     #[test]
     fn test_goldilocks_extension_chip() {
         base_test().k(14).run(|ctx, range| {
-            let mut ctx = ContextWrapper::new(ctx);
-            let ctx = &mut ctx;
+            let ctx = &mut ContextWrapper::new(ctx);
 
             let native = NativeChip::<Fr>::new(range.clone());
             let gl_chip = GoldilocksChip::new(native);

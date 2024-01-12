@@ -9,8 +9,6 @@ use crate::{
 pub mod poseidon;
 pub mod poseidon_bn254;
 
-// TODO: Is there a way to avoid the empty trait?
-// TODO: Rename to GenericHashWire?
 pub trait HashWire<F: BigPrimeField>: Copy + Clone {
     fn to_goldilocks_vec(
         &self,
@@ -19,7 +17,6 @@ pub trait HashWire<F: BigPrimeField>: Copy + Clone {
     ) -> Vec<GoldilocksWire<F>>;
 }
 
-// TODO: Rename to GenericStateWire?
 pub trait StateWire<F: BigPrimeField>: Copy + Clone {
     type Item: Copy + Clone;
 }
@@ -57,9 +54,6 @@ pub trait HasherChip<F: BigPrimeField> {
     const MAX_GOLDILOCKS: usize;
 
     type Hasher: Hasher<GoldilocksField>;
-    // TODO: Why doesn't something like this work?
-    // type Hash: Self::Hasher::Hash;
-
     type PermutationChip: PermutationChip<F>;
 
     /// Hash Output

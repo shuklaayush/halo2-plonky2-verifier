@@ -409,12 +409,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
             let x_index_within_coset = goldilocks_chip.bits_to_num(ctx, x_index_within_coset_bits);
 
             // Check consistency with our old evaluation from the previous round.
-            let new_eval = extension_chip.select_from_idx(
-                ctx,
-                // TODO: Ugly
-                evals,
-                &x_index_within_coset,
-            );
+            let new_eval = extension_chip.select_from_idx(ctx, evals, &x_index_within_coset);
             extension_chip.assert_equal(ctx, &new_eval, &old_eval);
 
             // Infer P(y) from {P(x)}_{x^arity=y}.
