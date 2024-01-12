@@ -28,14 +28,11 @@ use crate::{
     util::context_wrapper::ContextWrapper,
 };
 
-// TODO: Follow plonky2 pattern of `load_witness` (add target) and `assert_equal` (set target)
-//       instead of `load_constant`?
 pub struct WitnessChip<F: BigPrimeField, HC: HasherChip<F>> {
     goldilocks_chip: GoldilocksChip<F>,
     hasher_chip: HC,
 }
 
-// TODO: This should all probably be load_witness
 impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
     pub fn new(goldilocks_chip: GoldilocksChip<F>, hasher_chip: HC) -> Self {
         Self {
@@ -50,7 +47,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
 
     #[count]
     fn load(&self, ctx: &mut ContextWrapper<F>, value: GoldilocksField) -> GoldilocksWire<F> {
-        self.goldilocks_chip().load_constant(ctx, value)
+        self.goldilocks_chip().load_witness(ctx, value)
     }
 
     #[count]
@@ -59,7 +56,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> WitnessChip<F, HC> {
         ctx: &mut ContextWrapper<F>,
         value: <HC::Hasher as Hasher<GoldilocksField>>::Hash,
     ) -> HC::HashWire {
-        self.hasher_chip.load_constant(ctx, value)
+        self.hasher_chip.load_witness(ctx, value)
     }
 
     #[count]
