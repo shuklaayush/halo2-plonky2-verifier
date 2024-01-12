@@ -14,7 +14,6 @@ use crate::util::context_wrapper::ContextWrapper;
 #[derive(Copy, Clone, Debug)]
 pub struct GoldilocksWire<F: BigPrimeField>(pub AssignedValue<F>);
 
-// TODO: Is this correct?
 impl<F: BigPrimeField> Default for GoldilocksWire<F> {
     fn default() -> GoldilocksWire<F> {
         Self(AssignedValue {
@@ -43,18 +42,13 @@ impl<F: BigPrimeField> GoldilocksWire<F> {
 //     }
 // }
 
-// TODO: Reference and lifetimes? Should GoldilocksChip own RangeChip?
-//       Add, mul as trait implementations for GoldilocksWire instead of GoldilocksChip?
-//       Generic FieldChip trait?
 #[derive(Debug, Clone)]
 pub struct GoldilocksChip<F: BigPrimeField> {
-    pub native: NativeChip<F>, // TODO: Change to reference and add lifetime?
+    pub native: NativeChip<F>,
 }
 
 // TODO: Abstract away as generic FieldChip trait?
 //       Change load_* syntax to just *. `load_zero` -> `zero`, `load_constant` -> `constant`
-//       Pass values instead of references since they are cheap to copy?
-//       Assert somewhere that F ~ 256 bits
 impl<F: BigPrimeField> GoldilocksChip<F> {
     pub fn new(native: NativeChip<F>) -> Self {
         Self { native }
@@ -64,8 +58,6 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         &self.native
     }
 
-    // TODO: Keep a track of constants loaded to avoid loading them multiple times?
-    //       Maybe do range check
     #[count]
     pub fn load_constant(
         &self,
@@ -96,23 +88,20 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
     pub fn load_constant_array<const N: usize>(
         &self,
         ctx: &mut ContextWrapper<F>,
-        a: &[GoldilocksField; N],
+        arr: &[GoldilocksField; N],
     ) -> [GoldilocksWire<F>; N] {
-        a.iter()
-            .map(|a| self.load_constant(ctx, *a))
-            .collect::<Vec<GoldilocksWire<F>>>()
-            .try_into() // TODO: There must be a better way than try_into
-            .unwrap()
+        arr.map(|a| self.load_constant(ctx, a))
     }
 
-    // TODO: Only vec?
     #[count]
     pub fn load_constant_slice(
         &self,
         ctx: &mut ContextWrapper<F>,
-        a: &[GoldilocksField],
+        arr: &[GoldilocksField],
     ) -> Vec<GoldilocksWire<F>> {
-        a.iter().map(|a| self.load_constant(ctx, *a)).collect_vec()
+        arr.iter()
+            .map(|a| self.load_constant(ctx, *a))
+            .collect_vec()
     }
 
     #[count]
@@ -129,6 +118,23 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
         wire
     }
 
+    #[count]
+    pub fn load_witness_array<const N: usize>(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        arr: &[GoldilocksField; N],
+    ) -> [GoldilocksWire<F>; N] {
+        arr.map(|a| self.load_witness(ctx, a))
+    }
+
+    #[count]
+    pub fn load_witness_slice(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        arr: &[GoldilocksField],
+    ) -> Vec<GoldilocksWire<F>> {
+        arr.iter().map(|a| self.load_witness(ctx, *a)).collect_vec()
+    }
     #[count]
     pub fn select(
         &self,
@@ -196,7 +202,7 @@ impl<F: BigPrimeField> GoldilocksChip<F> {
             .iter()
             .map(|&x| GoldilocksWire(x))
             .collect::<Vec<_>>()
-            .try_into() // TODO: There must be a better way than try_into
+            .try_into()
             .unwrap()
     }
 

@@ -87,6 +87,17 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonBN254Chip<F> {
     }
 
     #[count]
+    fn load_witness(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        h: PoseidonBN128HashOut<GoldilocksField>,
+    ) -> PoseidonBN254HashWire<F> {
+        let native = self.native();
+        let value = native.load_witness(ctx, hash_to_fr(h));
+        PoseidonBN254HashWire { value }
+    }
+
+    #[count]
     fn load_goldilocks_slice(
         &self,
         ctx: &mut ContextWrapper<F>,

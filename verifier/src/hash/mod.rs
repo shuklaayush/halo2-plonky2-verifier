@@ -73,6 +73,12 @@ pub trait HasherChip<F: BigPrimeField> {
         constant: <Self::Hasher as Hasher<GoldilocksField>>::Hash,
     ) -> Self::HashWire;
 
+    fn load_witness(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        witness: <Self::Hasher as Hasher<GoldilocksField>>::Hash,
+    ) -> Self::HashWire;
+
     fn load_goldilocks_slice(
         &self,
         ctx: &mut ContextWrapper<F>,

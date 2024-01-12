@@ -39,7 +39,6 @@ impl<F: BigPrimeField> Default for GoldilocksQuadExtWire<F> {
 //     }
 // }
 
-// TODO: Reference and lifetimes? Should GoldilocksExtensionChip own GoldilocksChip?
 #[derive(Debug, Clone)]
 pub struct GoldilocksQuadExtChip<F: BigPrimeField> {
     pub goldilocks_chip: GoldilocksChip<F>,
@@ -78,13 +77,9 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
     pub fn load_constant_array<const N: usize>(
         &self,
         ctx: &mut ContextWrapper<F>,
-        a: &[QuadraticExtension<GoldilocksField>; N],
+        arr: &[QuadraticExtension<GoldilocksField>; N],
     ) -> [GoldilocksQuadExtWire<F>; N] {
-        a.iter()
-            .map(|a| self.load_constant(ctx, *a))
-            .collect::<Vec<GoldilocksQuadExtWire<F>>>() // TODO: There must be a better way
-            .try_into()
-            .unwrap()
+        arr.map(|a| self.load_constant(ctx, a))
     }
 
     #[count]
@@ -322,7 +317,6 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         self.sub(ctx, &ab, c)
     }
 
-    // TODO: Is this correct? Is there a better way to do this?
     #[count]
     pub fn inv(
         &self,
@@ -396,7 +390,6 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
             0 => return self.load_one(ctx),
             1 => return *base,
             2 => return self.mul(ctx, base, base),
-            // TODO: Do i need a special case for 3?
             _ => (),
         }
         let mut current = *base;
@@ -428,7 +421,6 @@ impl<F: BigPrimeField> GoldilocksQuadExtChip<F> {
         curr
     }
 
-    // TODO: There should be a way to do this without reducing every step
     #[count]
     pub fn reduce_with_powers(
         &self,
@@ -484,7 +476,7 @@ mod tests {
             let mut ctx = ContextWrapper::new(ctx);
             let ctx = &mut ctx;
 
-            let native = NativeChip::<Fr>::new(range.clone()); // TODO: Remove clone, store reference
+            let native = NativeChip::<Fr>::new(range.clone());
             let gl_chip = GoldilocksChip::new(native);
             let gle_chip = GoldilocksQuadExtChip::new(gl_chip);
 

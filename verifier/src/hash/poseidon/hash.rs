@@ -84,13 +84,19 @@ impl<F: BigPrimeField> HasherChip<F> for PoseidonChip<F> {
     ) -> PoseidonHashWire<F> {
         let goldilocks_chip = self.goldilocks_chip();
         PoseidonHashWire {
-            elements: h
-                .elements
-                .iter()
-                .map(|&x| goldilocks_chip.load_constant(ctx, x))
-                .collect_vec()
-                .try_into()
-                .unwrap(),
+            elements: goldilocks_chip.load_constant_array(ctx, &h.elements),
+        }
+    }
+
+    #[count]
+    fn load_witness(
+        &self,
+        ctx: &mut ContextWrapper<F>,
+        h: HashOut<GoldilocksField>,
+    ) -> PoseidonHashWire<F> {
+        let goldilocks_chip = self.goldilocks_chip();
+        PoseidonHashWire {
+            elements: goldilocks_chip.load_witness_array(ctx, &h.elements),
         }
     }
 
