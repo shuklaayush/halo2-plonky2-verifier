@@ -2,10 +2,7 @@ use halo2_base::utils::BigPrimeField;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::Hasher};
 
 use crate::{
-    field::{
-        goldilocks::{base::GoldilocksWire, BoolWire},
-        native::NativeChip,
-    },
+    field::{bool::BoolWire, goldilocks::base::GoldilocksWire, native::NativeChip},
     util::context_wrapper::ContextWrapper,
 };
 

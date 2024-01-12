@@ -8,8 +8,8 @@ use plonky2::hash::poseidon::{PoseidonHash, SPONGE_WIDTH};
 use verifier_macro::count;
 
 use super::permutation::{PoseidonPermutationChip, PoseidonStateWire};
+use crate::field::bool::BoolWire;
 use crate::field::goldilocks::base::{GoldilocksChip, GoldilocksWire};
-use crate::field::goldilocks::BoolWire;
 use crate::field::native::NativeChip;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
 use crate::util::context_wrapper::ContextWrapper;

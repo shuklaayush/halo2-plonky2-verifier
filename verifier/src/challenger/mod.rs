@@ -18,7 +18,6 @@ use crate::util::context_wrapper::ContextWrapper;
 
 pub struct ChallengerChip<F: BigPrimeField, PC: PermutationChip<F>> {
     pub permutation_chip: PC,
-    // TODO: Ugly
     pub sponge_state: PC::StateWire,
     pub input_buffer: Vec<GoldilocksWire<F>>,
     pub output_buffer: Vec<GoldilocksWire<F>>,
@@ -260,8 +259,6 @@ impl<F: BigPrimeField, PC: PermutationChip<F>> ChallengerChip<F, PC> {
     /// output buffer will be full.
     #[count]
     fn absorb_buffered_inputs(&mut self, ctx: &mut ContextWrapper<F>) {
-        // TODO: This is some weird error.
-        // let permutation_chip = self.permutation_chip();
         let permutation_chip = self.permutation_chip.clone();
 
         if self.input_buffer.is_empty() {

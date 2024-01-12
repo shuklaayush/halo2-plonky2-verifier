@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 
 use verifier_macro::count;
 
+use crate::field::bool::BoolWire;
 use crate::field::goldilocks::base::{GoldilocksChip, GoldilocksWire};
-use crate::field::goldilocks::BoolWire;
 use crate::hash::{HashWire, HasherChip};
 use crate::util::context_wrapper::ContextWrapper;
 

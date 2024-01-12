@@ -10,8 +10,8 @@ use plonky2x::backend::wrapper::poseidon_bn128::WIDTH;
 use verifier_macro::count;
 
 use super::permutation::{PoseidonBN254PermutationChip, PoseidonBN254StateWire};
+use crate::field::bool::BoolWire;
 use crate::field::goldilocks::base::GoldilocksWire;
-use crate::field::goldilocks::BoolWire;
 use crate::field::native::NativeChip;
 use crate::hash::{HashWire, HasherChip, PermutationChip};
 use crate::util::context_wrapper::ContextWrapper;

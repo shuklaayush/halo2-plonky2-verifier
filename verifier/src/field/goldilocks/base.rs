@@ -7,10 +7,9 @@ use plonky2::field::types::{Field, Field64, PrimeField64};
 
 use verifier_macro::count;
 
+use crate::field::bool::BoolWire;
 use crate::field::native::NativeChip;
 use crate::util::context_wrapper::ContextWrapper;
-
-use super::BoolWire;
 
 #[derive(Copy, Clone, Debug)]
 pub struct GoldilocksWire<F: BigPrimeField>(pub AssignedValue<F>);

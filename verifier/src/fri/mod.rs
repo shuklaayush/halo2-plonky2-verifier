@@ -10,9 +10,9 @@ use plonky2::util::{log2_strict, reverse_index_bits_in_place};
 
 use verifier_macro::count;
 
+use crate::field::bool::BoolWire;
 use crate::field::goldilocks::base::{GoldilocksChip, GoldilocksWire};
 use crate::field::goldilocks::extension::{GoldilocksQuadExtChip, GoldilocksQuadExtWire};
-use crate::field::goldilocks::BoolWire;
 use crate::field::native::NativeChip;
 use crate::hash::{HashWire, HasherChip};
 use crate::merkle::{MerkleCapWire, MerkleProofWire, MerkleTreeChip};
@@ -356,6 +356,7 @@ impl<F: BigPrimeField, HC: HasherChip<F>> FriChip<F, HC> {
         // Note that this `low_bits` decomposition permits non-canonical binary encodings. Here we
         // verify that this has a negligible impact on soundness error.
         // TODO: This should ideally be someplace else in the plonky2 crate.
+        //       Copy here for now.
         CircuitBuilder::<GoldilocksField, 2>::assert_noncanonical_indices_ok(&params.config);
 
         // TODO: Do I need to do full bit decomposition since truncating?
